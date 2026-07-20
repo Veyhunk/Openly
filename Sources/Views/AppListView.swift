@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// App 视图 — 按 App 管理文件关联
+/// App 视图 — 玻璃侧栏 + 毛玻璃内容区
 struct AppListView: View {
 
     var viewModel: AppListViewModel
@@ -9,10 +9,10 @@ struct AppListView: View {
     var body: some View {
         Group {
             switch viewModel.loadingState {
-            case .idle:   emptyStateView
-            case .loading: loadingView
-            case .error(let msg): errorView(msg)
-            case .loaded: loadedView
+            case .idle:                    emptyStateView
+            case .loading:                 loadingView
+            case .error(let msg):          errorView(msg)
+            case .loaded:                  loadedView
             }
         }
         .task { await viewModel.loadAll() }
@@ -21,151 +21,137 @@ struct AppListView: View {
     // MARK: - 主视图
 
     private var loadedView: some View {
-        HSplitView {
-            appListSidebar.frame(minWidth: 240, idealWidth: 280, maxWidth: 320)
-            appDetailView.frame(minWidth: 400)
+        HStack(spacing: 0) {
+            appListSidebar
+                .frame(width: 260)
+                .background(.ultraThinMaterial)
+
+            Rectangle()
+                .frame(width: 1)
+                .foregroundStyle(.quaternary)
+
+            appDetailView
         }
     }
 
-    // MARK: - App 列表
+    // MARK: - 侧栏
 
     private var appListSidebar: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary).font(.callout)
-                TextField("搜索 App...", text: viewModel.searchQueryBinding)
-                    .textFieldStyle(.plain).font(.body)
+            // 搜索
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("搜索 App…", text: viewModel.searchQueryBinding).textFieldStyle(.plain)
             }
-            .padding(8)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(.quinary, in: RoundedRectangle(cornerRadius: 7))
             .padding(12)
 
+            // 筛选
             Picker("筛选", selection: viewModel.filterTypeBinding) {
-                ForEach(AppListViewModel.AppFilterType.allCases) { type in
-                    Text(type.rawValue).tag(type)
-                }
+                ForEach(AppListViewModel.AppFilterType.allCases) { t in Text(t.rawValue).tag(t) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 12).padding(.bottom, 8)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 10)
 
-            Divider()
-
+            // App 列表
             List(selection: viewModel.selectedAppIDBinding) {
                 ForEach(viewModel.filteredApps) { app in appRow(app).tag(app.id) }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
 
+            // 底栏
             HStack {
-                Text("\(viewModel.filteredApps.count) 个 App")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("\(viewModel.filteredApps.count) 个 App").font(.caption).foregroundStyle(.secondary)
                 Spacer()
             }
-            .padding(.horizontal, 12).padding(.vertical, 8).background(.bar)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(.bar)
         }
     }
 
     private func appRow(_ app: AppInfo) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: app.isSystemApp ? "apple.logo" : "app.fill")
-                .font(.body)
-                .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
+        HStack(spacing: 8) {
+            if let iconPath = app.iconPath, let nsImage = NSImage(contentsOfFile: iconPath) {
+                Image(nsImage: nsImage).resizable().frame(width: 22, height: 22)
+            } else {
+                Image(systemName: app.isSystemApp ? "apple.logo" : "app.fill")
+                    .font(.body).frame(width: 22)
+                    .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
+            }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(app.name).font(.body).lineLimit(1)
-                Text("\(app.supportedExtensions.count) 个格式")
-                    .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(app.name).lineLimit(1)
+                Text("\(app.supportedExtensions.count) 种格式").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-
-            let count = viewModel.extensionCount(for: app.id)
-            if count > 0 {
-                Text("\(count)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(.quaternary, in: Capsule())
-            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
     }
 
-    // MARK: - App 详情
+    // MARK: - 详情
 
     @ViewBuilder
     private var appDetailView: some View {
         if let app = viewModel.selectedApp {
             appExtensionsDetail(app)
         } else {
-            noSelectionView
+            VStack(spacing: 16) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 48)).foregroundStyle(.quaternary)
+                VStack(spacing: 4) {
+                    Text("选择一个 App").font(.title2).fontWeight(.medium)
+                    Text("查看该 App 管理的所有文件格式").foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.windowBackground)
         }
-    }
-
-    private var noSelectionView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 48)).foregroundStyle(.quaternary)
-            Text("选择一个 App").font(.title2).foregroundStyle(.secondary)
-            Text("查看该 App 管理的所有文件格式").font(.body).foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func appExtensionsDetail(_ app: AppInfo) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // App 头部信息
-            VStack(alignment: .leading, spacing: 8) {
+            // 头部
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
-                    // App 图标 — 尝试加载实际图标，失败则用 SF Symbol
                     Group {
-                        if let iconPath = app.iconPath,
-                           let nsImage = NSImage(contentsOfFile: iconPath) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .frame(width: 40, height: 40)
+                        if let ip = app.iconPath, let img = NSImage(contentsOfFile: ip) {
+                            Image(nsImage: img).resizable()
                         } else {
                             Image(systemName: app.isSystemApp ? "apple.logo" : "app.fill")
-                                .font(.system(size: 28))
-                                .frame(width: 40, height: 40)
-                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                                .font(.title2)
+                                .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
                         }
                     }
-                    .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
+                    .frame(width: 36, height: 36)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(app.name)
-                            .font(.title3).fontWeight(.semibold)
-                        Text(app.id)
-                            .font(.caption).foregroundStyle(.secondary).monospaced()
+                        Text(app.name).font(.title3).fontWeight(.semibold)
+                        Text(app.id).font(.caption).foregroundStyle(.secondary).monospaced()
                     }
                 }
 
-                // 元信息
-                HStack(spacing: 16) {
-                    if let version = app.version {
-                        metaLabel("版本", value: version)
-                    }
-                    metaLabel("格式", value: "\(app.supportedExtensions.count) 个")
+                HStack(spacing: 20) {
+                    if let v = app.version { metaLabel("版本", v) }
+                    metaLabel("支持格式", "\(app.supportedExtensions.count) 个")
                     let managed = viewModel.selectedAppAssociations.flatMap { $0.extensions }.count
-                    if managed > 0 {
-                        metaLabel("默认", value: "\(managed) 个")
-                    }
+                    if managed > 0 { metaLabel("默认打开", "\(managed) 个") }
                 }
 
-                Text(app.path)
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .lineLimit(1).truncationMode(.middle)
+                Text(app.path).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
             }
-            .padding(20)
+            .padding(24)
 
             Divider()
 
+            // 扩展名列表
             if viewModel.selectedAppAssociations.isEmpty {
                 VStack(spacing: 12) {
-                    Image(systemName: "link.badge.plus")
-                        .font(.system(size: 32)).foregroundStyle(.quaternary)
-                    Text("此 App 尚未设置任何默认关联")
-                        .font(.body).foregroundStyle(.secondary)
+                    Image(systemName: "link").font(.system(size: 28)).foregroundStyle(.quaternary)
+                    Text("尚未设置任何默认关联").foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -174,20 +160,17 @@ struct AppListView: View {
                         HStack(spacing: 4) {
                             ForEach(assoc.extensions, id: \.self) { ext in
                                 Text(".\(ext)")
-                                    .font(.body.monospaced())
-                                    .padding(.horizontal, 4).padding(.vertical, 1)
-                                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+                                    .font(.body.monospaced()).fontWeight(.medium)
+                                    .padding(.horizontal, 5).padding(.vertical, 1)
+                                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
                             }
                         }
                         Spacer()
-                        Text(assoc.utiIdentifier ?? "")
-                            .font(.caption).foregroundStyle(.tertiary).monospaced().lineLimit(1)
+                        Text(assoc.utiIdentifier ?? "").font(.caption2).foregroundStyle(.tertiary).monospaced()
                         Spacer()
                         ForEach(assoc.extensions, id: \.self) { ext in
                             Button("移除") {
-                                Task {
-                                    await viewModel.removeAssociation(extensionID: ext, fromApp: app.id)
-                                }
+                                Task { await viewModel.removeAssociation(extensionID: ext, fromApp: app.id) }
                             }
                             .buttonStyle(.borderless).font(.caption).foregroundStyle(.red)
                         }
@@ -197,44 +180,49 @@ struct AppListView: View {
                 .listStyle(.inset)
             }
         }
+        .background(.windowBackground)
     }
 
-    // MARK: - 状态
+    // MARK: - 状态视图
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "app.badge")
-                .font(.system(size: 48)).foregroundStyle(.quaternary)
-            Text("准备就绪").font(.title2).foregroundStyle(.secondary)
+        VStack(spacing: 20) {
+            Image(systemName: "app.badge").font(.system(size: 48)).foregroundStyle(.quaternary)
+            VStack(spacing: 6) {
+                Text("已安装 App").font(.title2).fontWeight(.medium)
+                Text("查看每个 App 支持的文件格式").foregroundStyle(.secondary)
+            }
             Button("加载数据") { Task { await viewModel.loadAll() } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.borderedProminent).controlSize(.large)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.windowBackground)
     }
 
     private var loadingView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             ProgressView().scaleEffect(1.2)
-            Text("正在扫描已安装 App...").foregroundStyle(.secondary)
+            Text("正在扫描已安装 App…").foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.windowBackground)
     }
 
     private func errorView(_ msg: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40)).foregroundStyle(.yellow)
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle").font(.system(size: 40)).foregroundStyle(.orange)
             Text("加载失败").font(.title3)
-            Text(msg).font(.callout).foregroundStyle(.secondary)
-            Button("重试") { Task { await viewModel.refresh() } }
-                .buttonStyle(.borderedProminent)
+            Text(msg).font(.callout).foregroundStyle(.secondary).frame(maxWidth: 300)
+            Button("重试") { Task { await viewModel.refresh() } }.buttonStyle(.borderedProminent)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.windowBackground)
     }
 
-    private func metaLabel(_ label: String, value: String) -> some View {
+    private func metaLabel(_ label: String, _ value: String) -> some View {
         HStack(spacing: 4) {
-            Text(label)
-                .font(.caption).foregroundStyle(.tertiary)
-            Text(value)
-                .font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(.tertiary)
+            Text(value).font(.caption).foregroundStyle(.secondary)
         }
     }
 }

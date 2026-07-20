@@ -73,6 +73,19 @@ actor ExtensionDescriptionDB {
         return data?.categories[category] ?? []
     }
 
+    /// 获取所有已知扩展名及其描述（批量，避免多次 actor 调用）
+    func allExtensionsInfo() -> [(ext: String, desc: String?, category: String?)] {
+        ensureLoaded()
+        guard let data else { return [] }
+        var result: [(String, String?, String?)] = []
+        for (cat, exts) in data.categories {
+            for ext in exts {
+                result.append((ext, data.descriptions[ext], cat))
+            }
+        }
+        return result
+    }
+
     /// 获取所有分类
     func allCategories() -> [String] {
         ensureLoaded()

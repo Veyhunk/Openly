@@ -137,6 +137,20 @@ final class ExtensionListViewModel {
                 }
             }
 
+            // 补充描述库中有但 LSHandlers 中没有的扩展名
+            let allDescInfo = await descDB.allExtensionsInfo()
+            for (extName, desc, cat) in allDescInfo {
+                guard seen[extName] == nil else { continue }
+                let availableApps = loadedApps.filter { $0.supportedExtensions.contains(extName) }
+                seen[extName] = ExtensionInfo(
+                    id: extName, utiIdentifier: nil,
+                    description: desc, category: cat,
+                    defaultAppBundleID: nil, defaultAppName: nil, defaultAppPath: nil,
+                    isSystemApp: false,
+                    allAvailableApps: availableApps
+                )
+            }
+
             self.allExtensions = Array(seen.values).sorted { $0.id < $1.id }
             self.categories = availableCategories
             self.loadingState = .loaded
