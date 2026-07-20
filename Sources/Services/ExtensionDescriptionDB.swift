@@ -21,7 +21,7 @@ actor ExtensionDescriptionDB {
     private func ensureLoaded() {
         guard data == nil else { return }
 
-        guard let url = Bundle.module.url(
+        guard let url = ResourceHelper.url(
             forResource: "extension_descriptions",
             withExtension: "json"
         ) else {

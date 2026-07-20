@@ -103,8 +103,12 @@ final class ExtensionListViewModel {
 
             let (loadedAssociations, loadedApps) = try await (associations, apps)
 
-            let descInfos = await descDB.batchInfo(for: loadedAssociations.flatMap { $0.extensions })
-            let descLookup = Dictionary(uniqueKeysWithValues: descInfos.map { ($0.ext, ($0.desc, $0.category)) })
+            let uniqExts = Array(Set(loadedAssociations.flatMap { $0.extensions }))
+            let descInfos = await descDB.batchInfo(for: uniqExts)
+            let descLookup: [String: (desc: String?, category: String?)] = Dictionary(
+                descInfos.map { ($0.ext, ($0.desc, $0.category)) },
+                uniquingKeysWith: { first, _ in first }
+            )
 
             var allExts: [ExtensionInfo] = []
             for assoc in loadedAssociations {

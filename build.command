@@ -85,8 +85,8 @@ do_app_bundle() {
     mkdir -p "$APP_BUNDLE/Contents/Resources"
 
     cp "$BUILD_DIR/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
-    cp "$PROJECT_DIR/Sources/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
-    cp "$PROJECT_DIR/Sources/Resources/AppIcon-dark.icns" "$APP_BUNDLE/Contents/Resources/"
+    # 复制所有资源文件
+    cp "$PROJECT_DIR"/Sources/Resources/* "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
 
     # 生成 Info.plist
     cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST

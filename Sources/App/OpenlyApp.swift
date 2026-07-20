@@ -96,8 +96,8 @@ struct OpenlyApp: App {
 
         let iconName = isDark ? "AppIcon-dark" : "AppIcon"
 
-        guard let iconURL = Bundle.module.url(forResource: iconName, withExtension: "icns"),
-              let iconImage = NSImage(contentsOf: iconURL) else {
+        guard let url = ResourceHelper.url(forResource: iconName, withExtension: "icns"),
+              let iconImage = NSImage(contentsOf: url) else {
             return
         }
 
