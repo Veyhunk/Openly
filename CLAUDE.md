@@ -45,26 +45,24 @@ Openly 是一款原生 macOS 应用，帮助用户直观地管理和切换文件
 
 SwiftUI 的 `@State`、`#Preview` 等宏依赖 Xcode 工具链中的 `SwiftUIMacros` / `PreviewsMacros` 插件，CLI 环境不可用。
 
-**解决方案（Binding Helper 模式）**：
+**解决方案（@Bindable + @Observable 模式）**：
 ```swift
 // ❌ 不能使用（需要 Xcode 宏插件）
 @State private var searchQuery: String = ""
-@Bindable var viewModel: ExtensionListViewModel
+#Preview { ... }
 
-// ✅ 替代方案：ViewModel 中提供 Binding 计算属性
-var searchQueryBinding: Binding<String> {
-    Binding(get: { self.searchQuery }, set: { self.searchQuery = $0 })
-}
-// 视图中使用: TextField("搜索", text: viewModel.searchQueryBinding)
+// ✅ 使用 @Bindable 获取 Observable 对象的双向绑定
+@Bindable var viewModel: ExtensionListViewModel
+// 视图中直接使用: TextField("搜索", text: $viewModel.searchQuery)
 ```
 
 **可用的宏**（来自 Command Line Tools）：
 - `@Observable` — Observation 框架宏 ✅
+- `@Bindable` — Observation 框架宏 ✅（实践验证可用）
 - `@Environment` — SwiftUI 属性包装器 ✅
 
 **不可用的宏**（需要 Xcode）：
 - `@State` — SwiftUI 宏 ❌
-- `@Bindable` — Observation 宏（部分功能） ❌
 - `#Preview` — Previews 宏 ❌
 - `@AppStorage` / `@SceneStorage` — SwiftUI 宏 ❌
 
@@ -119,7 +117,7 @@ try await NSWorkspace.shared.setDefaultApplication(
 3. 单文件 xattr 覆盖 (`com.apple.LaunchServices.OpenWith`) 优先级高于全局 LSHandlers
 4. 需要读取 `~/Library/Preferences/com.apple.LaunchServices/` 目录，非沙盒 App 可以访问
 5. 修改 LSHandlers 后 Launch Services 自动生效，无需手动重启
-6. **无 Xcode 环境**：必须避免 `@State`/`#Preview`/`@Bindable`，使用 Binding Helper 模式
+6. **无 Xcode 环境**：必须避免 `@State`/`#Preview`，使用 `@Bindable` + `@Observable` 模式获取双向绑定
 
 ## 目录结构
 ```
@@ -135,8 +133,8 @@ Sources/
 │   ├── AppScanner               # 扫描 /Applications 的 Info.plist
 │   └── ExtensionDescriptionDB   # 500+ 后缀描述 JSON
 ├── ViewModels/                  # MVVM ViewModel (@Observable)
-│   ├── ExtensionListViewModel   # 扩展名列表状态 + Binding helpers
-│   └── AppListViewModel         # App 列表状态 + Binding helpers
+│   ├── ExtensionListViewModel   # 扩展名列表状态（@Observable + @Bindable）
+│   └── AppListViewModel         # App 列表状态（@Observable + @Bindable）
 ├── Views/                       # SwiftUI 视图
 │   ├── ContentView              # TabView 主窗口
 │   ├── ExtensionListView        # Table + 搜索 + 筛选 + 分类
@@ -191,7 +189,7 @@ content.tabItem { Label("通用", systemImage: "gearshape") }
 - 使用 Swift Concurrency (async/await)，避免回调
 - ViewModel 使用 @Observable 宏 (Swift 6)
 - 服务层使用 actor，标记 @MainActor 用于 UI 相关
-- Views 通过 ViewModel 的 `xxxBinding` 属性获取双向绑定（不用 @Bindable）
+- Views 通过 `@Bindable var viewModel` + `$viewModel.property` 获取双向绑定
 - 所有系统调用做好错误处理，用 throws
 - 中文注释 + 英文代码标识符
 - 产品名称统一使用 "Openly"

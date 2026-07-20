@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 import Observation
 
 /// App 列表视图的 ViewModel
@@ -28,18 +27,6 @@ final class AppListViewModel {
     private let reader = LaunchServicesReader()
     private let writer = LaunchServicesWriter()
     private let scanner = AppScanner()
-
-    // MARK: - 绑定辅助
-
-    var searchQueryBinding: Binding<String> {
-        Binding(get: { self.searchQuery }, set: { self.searchQuery = $0 })
-    }
-    var filterTypeBinding: Binding<AppFilterType> {
-        Binding(get: { self.filterType }, set: { self.filterType = $0 })
-    }
-    var selectedAppIDBinding: Binding<String?> {
-        Binding(get: { self.selectedAppID }, set: { self.selectedAppID = $0 })
-    }
 
     // MARK: - 计算
 
@@ -84,6 +71,7 @@ final class AppListViewModel {
 
             self.allApps = loadedApps
             self.appAssociations = map
+            self.allAssociations = loadedAssociations
             self.loadingState = .loaded
         } catch {
             self.loadingState = .error(error.localizedDescription)
@@ -112,5 +100,30 @@ final class AppListViewModel {
 
     func extensionCount(for bundleID: String) -> Int {
         appAssociations[bundleID]?.reduce(0) { $0 + $1.extensions.count } ?? 0
+    }
+
+    /// 查询某个扩展名当前由哪个 App 作为默认打开
+    func currentDefaultForExtension(_ ext: String) -> (bundleID: String, name: String)? {
+        for (_, associations) in appAssociations {
+            for assoc in associations {
+                if assoc.extensions.contains(ext), let bundleID = assoc.defaultAppBundleID {
+                    return (bundleID, assoc.defaultAppName ?? bundleID)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// 所有 LaunchServices 关联（不按 Bundle ID 分组），用于全局查找
+    private(set) var allAssociations: [FileAssociation] = []
+
+    /// 检查某扩展名当前是否由指定 App 设为默认
+    func isDefaultForExtension(_ ext: String, bundleID: String) -> Bool {
+        for assoc in allAssociations {
+            if assoc.extensions.contains(ext), assoc.defaultAppBundleID == bundleID {
+                return true
+            }
+        }
+        return false
     }
 }

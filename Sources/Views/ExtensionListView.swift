@@ -1,9 +1,10 @@
 import SwiftUI
+import Observation
 
 /// 扩展名视图 — 玻璃材质，毛玻璃工具栏 + 清爽表格
 struct ExtensionListView: View {
 
-    var viewModel: ExtensionListViewModel
+    @Bindable var viewModel: ExtensionListViewModel
 
     var body: some View {
         Group {
@@ -15,11 +16,11 @@ struct ExtensionListView: View {
             }
         }
         .task { await viewModel.loadAll() }
-        .sheet(isPresented: viewModel.showBatchPanelBinding) {
+        .sheet(isPresented: $viewModel.showBatchPanel) {
             BatchOperationView(selectedExtensions: Array(viewModel.selectedExtensions), viewModel: viewModel)
                 .frame(width: 520, height: 520)
         }
-        .sheet(isPresented: viewModel.showAppPickerBinding) { appPickerSheet }
+        .sheet(isPresented: $viewModel.showAppPicker) { appPickerSheet }
     }
 
     // MARK: - 主视图
@@ -33,7 +34,7 @@ struct ExtensionListView: View {
 
             Divider()
 
-            Table(viewModel.filteredExtensions, selection: viewModel.selectedExtensionsBinding) {
+            Table(viewModel.filteredExtensions, selection: $viewModel.selectedExtensions) {
                 TableColumn("扩展名") { ext in extensionNameCell(ext) }
                     .width(min: 110, ideal: 130)
                 TableColumn("描述") { ext in
@@ -65,13 +66,13 @@ struct ExtensionListView: View {
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索扩展名、描述或 App…", text: viewModel.searchQueryBinding)
+                TextField("搜索扩展名、描述或 App…", text: $viewModel.searchQuery)
                     .textFieldStyle(.plain)
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(.quinary, in: RoundedRectangle(cornerRadius: 7))
 
-            Picker("分类", selection: viewModel.selectedCategoryBinding) {
+            Picker("分类", selection: $viewModel.selectedCategory) {
                 Text("全部分类").tag(nil as String?)
                 ForEach(viewModel.availableCategories, id: \.self) { cat in
                     Text(cat).tag(cat as String?)
@@ -80,7 +81,7 @@ struct ExtensionListView: View {
             .pickerStyle(.menu)
             .frame(width: 110)
 
-            Picker("筛选", selection: viewModel.filterTypeBinding) {
+            Picker("筛选", selection: $viewModel.filterType) {
                 ForEach(ExtensionListViewModel.FilterType.allCases) { t in Text(t.rawValue).tag(t) }
             }
             .pickerStyle(.segmented)

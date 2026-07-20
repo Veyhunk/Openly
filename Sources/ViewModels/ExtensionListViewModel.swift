@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 import Observation
 
 /// 扩展名列表视图的 ViewModel
@@ -70,27 +69,6 @@ final class ExtensionListViewModel {
 
     var isAllSelected: Bool {
         !filteredExtensions.isEmpty && selectedExtensions.count == filteredExtensions.count
-    }
-
-    // MARK: - 绑定辅助（避免 @Bindable 宏依赖）
-
-    var searchQueryBinding: Binding<String> {
-        Binding(get: { self.searchQuery }, set: { self.searchQuery = $0 })
-    }
-    var selectedCategoryBinding: Binding<String?> {
-        Binding(get: { self.selectedCategory }, set: { self.selectedCategory = $0 })
-    }
-    var filterTypeBinding: Binding<FilterType> {
-        Binding(get: { self.filterType }, set: { self.filterType = $0 })
-    }
-    var selectedExtensionsBinding: Binding<Set<String>> {
-        Binding(get: { self.selectedExtensions }, set: { self.selectedExtensions = $0 })
-    }
-    var showBatchPanelBinding: Binding<Bool> {
-        Binding(get: { self.showBatchPanel }, set: { self.showBatchPanel = $0 })
-    }
-    var showAppPickerBinding: Binding<Bool> {
-        Binding(get: { self.showAppPicker }, set: { self.showAppPicker = $0 })
     }
 
     // MARK: - 方法

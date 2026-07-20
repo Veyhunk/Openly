@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 
 /// 批量操作面板 — 将选中的扩展名统一分配给一个 App
 struct BatchOperationView: View {
@@ -31,17 +32,18 @@ private struct BatchOperationSheet: View {
 
     private let scanner = AppScanner()
 
-    // 本地状态（通过内部 Observable 类持有）
-    private let state = BatchState()
+    // 本地状态（通过 @Observable 类持有，配合 @Bindable 使用）
+    @Bindable private var state = BatchState()
 
-    private class BatchState: ObservableObject {
-        @Published var searchQuery = ""
-        @Published var selectedBundleID: String? = nil
-        @Published var apps: [AppInfo] = []
-        @Published var isApplying = false
-        @Published var resultSuccess = 0
-        @Published var resultFail = 0
-        @Published var showResults = false
+    @Observable
+    fileprivate class BatchState {
+        var searchQuery = ""
+        var selectedBundleID: String? = nil
+        var apps: [AppInfo] = []
+        var isApplying = false
+        var resultSuccess = 0
+        var resultFail = 0
+        var showResults = false
     }
 
     var body: some View {
@@ -71,10 +73,7 @@ private struct BatchOperationSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索目标 App...", text: Binding(
-                    get: { state.searchQuery },
-                    set: { state.searchQuery = $0 }
-                ))
+                TextField("搜索目标 App...", text: $state.searchQuery)
                 .textFieldStyle(.plain)
             }
             .padding(8)
@@ -82,10 +81,7 @@ private struct BatchOperationSheet: View {
             .padding(12)
 
             // App 列表
-            List(selection: Binding(
-                get: { state.selectedBundleID },
-                set: { state.selectedBundleID = $0 }
-            )) {
+            List(selection: $state.selectedBundleID) {
                 Section("选择一个目标 App") {
                     ForEach(filteredApps) { app in
                         appRow(app).tag(app.id)
