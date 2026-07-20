@@ -5,76 +5,69 @@
 
 ---
 
-## 📋 决策日志
+## 决策日志
 
 | 日期 | 决策 | 理由 |
 |------|------|------|
-| 2026-07-20 | 产品命名为 **Openly** | 调研 2025-2026 macOS 开源生态命名趋势后选定：-ly 友好型、直指 Finder「打开方式」、中英文皆佳 |
-| 2026-07-20 | 放弃 NavigationSplitView 改用 TabView | 侧边栏导航在当前无-Xcode 环境中与 NavigationLink 配合复杂；TabView 简洁且 macOS 原生 |
-| 2026-07-20 | 自行实现 Binding Helper 模式 | `@Bindable`/`@State` 宏在 CLI 工具链不可用；ViewModel 提供 `xxxBinding` 计算属性替代 |
-| 2026-07-20 | App 详情用 List 替代 Table | 非 keyPath 版 TableColumn 在 Swift 6 闭包类型推断不兼容；List 更可靠 |
-| 2026-07-20 | 不安装 Xcode，纯 CLI 构建 | 环境仅 Command Line Tools；项目适配此约束，降低开发环境门槛 |
-| 2026-07-20 | 图标只用 SF Symbols，禁用 emoji | 保持 macOS 原生风格；emoji 在不同系统版本渲染不一致，显得不专业 |
-| 2026-07-20 | 去掉产品中的 AI 味道 | 避免「Built with X」「智能管理」等措辞；界面文案直接务实，像人写的 |
+| 2026-07-20 | 产品命名为 **Openly** | 调研 macOS 开源生态命名趋势后选定：-ly 友好型、直指 Finder「打开方式」 |
+| 2026-07-20 | TabView 替代 NavigationSplitView | 无-Xcode 环境中 NavigationLink 复杂；TabView 简洁 |
+| 2026-07-20 | Binding Helper 模式 | `@Bindable`/`@State` 宏在 CLI 工具链不可用 |
+| 2026-07-20 | App 详情用 List 替代 Table | 非 keyPath 版 TableColumn 在 Swift 6 类型推断不兼容 |
+| 2026-07-20 | 不安装 Xcode，纯 CLI 构建 | 降低开发环境门槛 |
+| 2026-07-20 | SF Symbols 替代 emoji | macOS 原生风格；emoji 跨版本渲染不一致 |
+| 2026-07-20 | 去掉 AI 味道 | 避免「Built with X」「智能管理」等措辞 |
 
 ---
 
 ## Phase 1 — MVP 核心（✅ 已完成）
 
-- [x] 项目骨架搭建（SPM + Swift 6 + macOS 14 target）
-- [x] 数据模型（FileAssociation, AppInfo, ExtensionInfo）— 3 个 struct
-- [x] LaunchServicesReader — 读取 `com.apple.launchservices.secure.plist`
-- [x] LaunchServicesWriter — `NSWorkspace.setDefaultApplication(at:toOpen:)`（经实测确认 API 名）
-- [x] AppScanner — 扫描 `/Applications` + `/System/Applications` + `~/Applications`
-- [x] ExtensionDescriptionDB — 236 条常见后缀中英文描述，按 12 大分类组织
-- [x] ExtensionListView — Table 表格 + 搜索 + 分类下拉 + 系统/第三方/未关联筛选
-- [x] AppListView — 左侧 App 列表 + 右侧扩展名详情，支持移除关联
-- [x] BatchOperationView — 多选扩展名 → 批量操作入口
-- [x] ContentView — TabView 主窗口（扩展名 / 应用）
-- [x] OpenlyApp — @main 入口 + Settings 面板
-- [x] 构建通过 ✅ — `swift build` 成功，二进制 1.7MB
-- [x] 适配无 Xcode 构建环境
-- [x] .gitignore 配置（排除 .build/）
-
-### Phase 1 构建过程中解决的问题
-
-1. **API 名修正**: 文档中的 `toOpenContentType:` 在 macOS 27 实际为 `toOpen:`
-2. **无 Xcode 宏限制**: 绕过 `@State`/`@Bindable`/`#Preview`，采用 Binding Helper 模式
-3. **类型推断冲突**: `HierarchicalShapeStyle` vs `Color` → 使用 `Color.secondary` 等显式类型
-4. **macOS 15 API 兼容**: `Tab(_:systemImage:)` 不可用 → 改用 `.tabItem { Label() }`
-5. **TableColumn 闭包**: 非 keyPath 版在 Swift 6 中类型推断问题 → App 详情改用 List
-6. **actor 方法调用**: `descDB.batchInfo()` 等需要 `await`
+- [x] 项目骨架 + 数据模型 + 4 个核心 Services
+- [x] ExtensionListView + AppListView + BatchOperationView + ContentView
+- [x] @main 入口 + 设置面板 + 关于页
+- [x] 构建通过（Swift 6.4 + macOS 27 SDK，纯 CLI）
 
 ---
 
-## Phase 2 — App 视图增强 + 批量操作（🚧 进行中）
+## Phase 2 — App 视图增强 + 批量操作（✅ 已完成）
 
-- [x] App 详情页完善：显示 App 图标（icns 加载）、版本号、路径
-- [x] BatchOperationView 重写：搜索 App → 选择目标 → 应用 → 结果展示
-- [x] AppInfo 模型扩展：version, iconPath 字段
-- [ ] 清除关联：无关联扩展名单独展示并支持一键清除
-- [ ] 支持从 App 详情中添加新扩展名关联
-- [ ] App 扫描性能优化（缓存结果）
-
----
-
-## Phase 3 — 高级特性（待开始）
-
-- [ ] 系统原生 App 筛选标签优化（com.apple.* 检测 + Apple 图标标记）
-- [ ] 完善后缀描述库（补充缺失条目，目标 500+）
-- [ ] 单文件 xattr 覆盖检测与清除（`com.apple.LaunchServices.OpenWith`）
-- [ ] 导出/导入配置文件（JSON/YAML 格式）
-- [ ] 撤销/重做支持
+- [x] App 详情页：icns 图标加载、版本号、路径
+- [x] BatchOperationView 重写：搜索 → 选择 → 应用 → 结果
+- [x] AppInfo 模型扩展：version, iconPath
+- [x] App 扫描缓存（5 分钟 TTL + forceRefresh）
+- [x] 从 App 详情移除关联
+- [x] 替换 App 默认程序（picker sheet）
 
 ---
 
-## Phase 4 — 发布准备（待开始）
+## Phase 3 — 高级特性（✅ 已完成）
 
-- [ ] 中文本地化完善（.strings 文件）
-- [ ] 应用图标设计（1024x1024 icns）
-- [ ] DMG 打包脚本（create-dmg 或 node-appdmg）
+- [x] 系统 App 筛选标签：com.apple.* + 路径检测 + Picker 分段控件
+- [x] 扩展名描述库扩展：655 个扩展名、405 条中文描述、13 个分类
+- [x] xattr 检测与清除：XattrService（com.apple.LaunchServices.OpenWith）
+- [x] 导出/导入：ConfigService JSON 格式，含 NSSavePanel/NSOpenPanel 菜单
+- [x] 键盘快捷键：Cmd+R 刷新、Cmd+Shift+S 导出、Cmd+Shift+O 导入
+
+---
+
+## Phase 4 — 发布准备（🚧 进行中）
+
+- [x] README.md：功能介绍、安装说明、系统要求
+- [x] CHANGELOG.md：Keep a Changelog 格式
+- [x] 版本管理：AppVersion 枚举，单一定义
+- [ ] 应用图标设计（暂用 SF Symbol）
+- [ ] DMG 打包脚本
 - [ ] Homebrew Cask formula
-- [ ] README.md 含截图、安装说明、功能列表
+
+---
+
+## 技术债务（✅ 大部分已处理）
+
+- [x] App 扫描结果缓存（AppScanner cacheTTL）
+- [x] 键盘快捷键（Cmd+R, Cmd+Shift+S/O）
+- [x] 配置文件导入/导出
+- [x] xattr 清理支持
+- [ ] 单元测试（Models + Services）
+- [ ] 错误处理本地化（中英文）
 
 ---
 
@@ -82,18 +75,8 @@
 
 | 限制 | 原因 | 影响 |
 |------|------|------|
-| 仅 CLI 构建 | 无 Xcode 环境，SwiftUI 宏插件缺失 | 不能使用 @State/@Bindable/#Preview |
-| 非沙盒 | 需读 `~/Library/Preferences/` | 不能上架 Mac App Store（可 DMG 分发） |
-| SIP 保护 | 系统 App 某些 UTI 被锁定 | Safari/Mail 关联可能无法覆盖 |
-| macOS 14+ | 使用了 .foregroundStyle(.quaternary) 等较新 API | 不支持 Ventura 及更早系统 |
-| API 版本差异 | `setDefaultApplication(at:toOpen:)` 是 macOS 27 API | 低版本可能签名不同，需适配 |
-
----
-
-## 技术债务
-
-- [ ] 补齐 `LSHandlers` 写入后的 Launch Services 通知机制（当前依赖手动刷新）
-- [ ] 添加单元测试（Models + Services）
-- [ ] 性能优化：App 扫描结果缓存（目前每次刷新都扫描）
-- [ ] 错误处理本地化（当前英文）
-- [ ] 全局快捷键支持（⌘R 刷新等）
+| 仅 CLI 构建 | 无 Xcode 环境 | 不能用 @State/@Bindable/#Preview |
+| 非沙盒 | 需读 `~/Library/Preferences/` | 仅 DMG 分发 |
+| SIP 保护 | 系统 App 某些 UTI 被锁定 | Safari/Mail 关联可能不可修改 |
+| macOS 14+ | 使用较新 API | 不支持 Ventura 及更早系统 |
+| API 版本 | `setDefaultApplication(at:toOpen:)` 是 macOS 27 签名 | 低版本可能不同 |
