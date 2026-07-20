@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// App 视图 — 按 App 管理文件关联
 struct AppListView: View {
@@ -112,19 +113,48 @@ struct AppListView: View {
 
     private func appExtensionsDetail(_ app: AppInfo) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Image(systemName: app.isSystemApp ? "apple.logo" : "app.fill")
-                        .font(.title)
-                        .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
+            // App 头部信息
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    // App 图标 — 尝试加载实际图标，失败则用 SF Symbol
+                    Group {
+                        if let iconPath = app.iconPath,
+                           let nsImage = NSImage(contentsOfFile: iconPath) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .frame(width: 40, height: 40)
+                        } else {
+                            Image(systemName: app.isSystemApp ? "apple.logo" : "app.fill")
+                                .font(.system(size: 28))
+                                .frame(width: 40, height: 40)
+                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    .foregroundStyle(app.isSystemApp ? Color.secondary : Color.blue)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(app.name).font(.title2).fontWeight(.semibold)
-                        Text(app.id).font(.caption).foregroundStyle(.secondary).monospaced()
+                        Text(app.name)
+                            .font(.title3).fontWeight(.semibold)
+                        Text(app.id)
+                            .font(.caption).foregroundStyle(.secondary).monospaced()
                     }
                 }
-                Text("管理 \(viewModel.selectedAppAssociations.flatMap { $0.extensions }.count) 个默认关联 / 共支持 \(app.supportedExtensions.count) 个格式")
-                    .font(.caption).foregroundStyle(.secondary)
+
+                // 元信息
+                HStack(spacing: 16) {
+                    if let version = app.version {
+                        metaLabel("版本", value: version)
+                    }
+                    metaLabel("格式", value: "\(app.supportedExtensions.count) 个")
+                    let managed = viewModel.selectedAppAssociations.flatMap { $0.extensions }.count
+                    if managed > 0 {
+                        metaLabel("默认", value: "\(managed) 个")
+                    }
+                }
+
+                Text(app.path)
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .lineLimit(1).truncationMode(.middle)
             }
             .padding(20)
 
@@ -196,6 +226,15 @@ struct AppListView: View {
             Text(msg).font(.callout).foregroundStyle(.secondary)
             Button("重试") { Task { await viewModel.refresh() } }
                 .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func metaLabel(_ label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption).foregroundStyle(.tertiary)
+            Text(value)
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 }

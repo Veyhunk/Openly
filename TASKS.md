@@ -14,6 +14,8 @@
 | 2026-07-20 | 自行实现 Binding Helper 模式 | `@Bindable`/`@State` 宏在 CLI 工具链不可用；ViewModel 提供 `xxxBinding` 计算属性替代 |
 | 2026-07-20 | App 详情用 List 替代 Table | 非 keyPath 版 TableColumn 在 Swift 6 闭包类型推断不兼容；List 更可靠 |
 | 2026-07-20 | 不安装 Xcode，纯 CLI 构建 | 环境仅 Command Line Tools；项目适配此约束，降低开发环境门槛 |
+| 2026-07-20 | 图标只用 SF Symbols，禁用 emoji | 保持 macOS 原生风格；emoji 在不同系统版本渲染不一致，显得不专业 |
+| 2026-07-20 | 去掉产品中的 AI 味道 | 避免「Built with X」「智能管理」等措辞；界面文案直接务实，像人写的 |
 
 ---
 
@@ -45,12 +47,14 @@
 
 ---
 
-## Phase 2 — App 视图增强 + 批量操作（待开始）
+## Phase 2 — App 视图增强 + 批量操作（🚧 进行中）
 
-- [ ] App 详情页完善：显示 App 图标、路径、版本信息
-- [ ] 批量操作：在 BatchOperationView 中搜索 App → 选择目标 → 确认 → 刷新
+- [x] App 详情页完善：显示 App 图标（icns 加载）、版本号、路径
+- [x] BatchOperationView 重写：搜索 App → 选择目标 → 应用 → 结果展示
+- [x] AppInfo 模型扩展：version, iconPath 字段
 - [ ] 清除关联：无关联扩展名单独展示并支持一键清除
 - [ ] 支持从 App 详情中添加新扩展名关联
+- [ ] App 扫描性能优化（缓存结果）
 
 ---
 

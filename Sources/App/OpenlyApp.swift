@@ -59,13 +59,13 @@ struct SettingsView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
 
-            Text("版本 1.0.0 (Beta)")
+            Text("版本 \(AppVersion.display)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
             Spacer()
 
-            Text("Built with Swift 6 + SwiftUI")
+            Text("macOS 文件打开方式管理工具")
                 .font(.caption)
                 .foregroundStyle(.quaternary)
         }

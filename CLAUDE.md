@@ -124,8 +124,9 @@ try await NSWorkspace.shared.setDefaultApplication(
 ## 目录结构
 ```
 Sources/
-├── App/                         # @main 入口 + Settings
-│   └── OpenlyApp.swift
+├── App/                         # @main 入口 + Settings + 版本定义
+│   ├── OpenlyApp.swift
+│   └── Version.swift
 ├── Models/                      # 数据模型
 │   └── FileAssociation.swift    # FileAssociation, ExtensionInfo, AppInfo
 ├── Services/                    # 核心业务服务 (actor 隔离)
@@ -146,6 +147,18 @@ Sources/
 ```
 
 ## 设计规范
+
+### 图标规则（重要）
+- **禁止使用 emoji** — 所有图标使用 SF Symbols 或 SVG 矢量图
+- UI 中的图标全部使用 `Image(systemName:)` 加载 SF Symbols
+- App 图标使用矢量设计，不要 emoji 风格的占位
+- 文件类型图标按分类使用对应 SF Symbol（如照片→`photo`，视频→`film`，代码→`chevron.left.forwardslash.chevron.right`）
+
+### 产品格调
+- **去掉 AI 味道** — 避免「Built with X」「AI-powered」「智能管理」等措辞
+- 产品描述直接、务实，像人写的，不像模型生成的
+- 界面文案简洁自然，不堆砌术语
+- 关于页面只写版本号和一句简短说明，不列技术栈
 
 ### macOS 27 / Sequoia 设计语言
 - **原生控件优先** — 使用 SwiftUI 标准控件 (Table, List, Picker, Button)，不做过度自定义

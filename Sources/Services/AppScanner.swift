@@ -86,6 +86,9 @@ actor AppScanner {
             ?? (plist["CFBundleName"] as? String)
             ?? url.deletingPathExtension().lastPathComponent
 
+        let version = plist["CFBundleShortVersionString"] as? String
+            ?? plist["CFBundleVersion"] as? String
+
         let isSystem = bundleID.hasPrefix("com.apple.")
             || url.path.hasPrefix("/System/")
 
@@ -93,13 +96,20 @@ actor AppScanner {
 
         guard !extensions.isEmpty else { return nil }
 
+        // 图标路径
+        let iconName = plist["CFBundleIconFile"] as? String
+        let iconPath: String? = if let icon = iconName {
+            url.appendingPathComponent("Contents/Resources/\(icon)").path
+        } else { nil }
+
         return AppInfo(
             id: bundleID,
             name: name,
             path: url.path,
+            version: version,
             isSystemApp: isSystem,
             supportedExtensions: extensions,
-            iconName: nil
+            iconPath: iconPath
         )
     }
 
