@@ -31,10 +31,31 @@ macOS 文件打开方式管理工具 — 按后缀选 App，按 App 管后缀
 # 要求：macOS 14+，Swift 6+
 git clone https://github.com/user/openly.git
 cd openly
-swift build
+
+# 方式一：双击 build.command，菜单式操作
+open build.command
+
+# 方式二：命令行编译
+swift build -c release
 ```
 
-构建产物在 `.build/debug/Openly`，可直接运行或复制到 `/Applications`。
+### 构建菜单（双击 `build.command`）
+
+```
+┌──────────────────────────────────────┐
+│      Openly 1.0.0 — 构建工具          │
+├──────────────────────────────────────┤
+│  1  编译 (swift build)               │
+│  2  编译并运行                        │
+│  3  生成 App 图标                     │
+│  4  创建 .app Bundle                 │
+│  5  创建 DMG 安装包                   │
+│  6  一键构建 (清理+编译+打包)          │
+│  7  清理构建缓存                       │
+│  8  运行测试                          │
+│  0  退出                              │
+└──────────────────────────────────────┘
+```
 
 ### Homebrew（即将支持）
 
