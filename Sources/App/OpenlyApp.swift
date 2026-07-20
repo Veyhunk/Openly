@@ -88,6 +88,21 @@ struct OpenlyApp: App {
         f.dateFormat = "yyyyMMdd"
         return f.string(from: Date())
     }
+
+    /// 根据当前系统外观加载对应图标
+    static func updateAppIcon() {
+        let isDark = NSApp.effectiveAppearance.name == .darkAqua
+            || NSApp.effectiveAppearance.name == .vibrantDark
+
+        let iconName = isDark ? "AppIcon-dark" : "AppIcon"
+
+        guard let iconURL = Bundle.module.url(forResource: iconName, withExtension: "icns"),
+              let iconImage = NSImage(contentsOf: iconURL) else {
+            return
+        }
+
+        NSApp.applicationIconImage = iconImage
+    }
 }
 
 // MARK: - 设置面板
