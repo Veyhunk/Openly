@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Openly Browser Routing",
+  "version": "1.0.0",
+  "description": "Select Chrome or Edge windows and tab groups from Openly.",
+  "permissions": ["tabs", "tabGroups", "nativeMessaging"],
+  "incognito": "spanning",
+  "web_accessible_resources": [{"resources": ["bridge.html"], "matches": ["<all_urls>"]}]
+}
