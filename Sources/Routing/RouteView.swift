@@ -91,7 +91,11 @@ struct RouteView: View {
                     }
                     if model.loadingTargets { HStack { ProgressView().controlSize(.small); Text("正在读取已有窗口和标签组，其他选项可直接使用。").foregroundStyle(.secondary) } }
                     if !WindowAccess.trusted { Button("授权后显示更多已有窗口") { WindowAccess.openSettings() } }
-                    if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] == nil { Text("连接 Openly 浏览器扩展后，已有窗口和标签组也会显示为卡片。").font(.callout).foregroundStyle(.secondary) }
+                    if model.chromium {
+                        let id = model.selectedAppID ?? ""
+                        Text(BrowserBridge.connectionHint(appID: id, extensionID: model.bridgeIDs[id])).font(.callout).foregroundStyle(.secondary)
+                        if model.bridgeIDs[id] == nil { Text("先在管理界面的“打开接管 → 应用打开能力”中连接扩展。Profile 和默认／新窗口／无痕卡片仍可直接使用。").font(.caption).foregroundStyle(.secondary) }
+                    }
                     ForEach(model.targetErrors.keys.sorted(), id: \.self) { name in Text("\(name)：\(model.targetErrors[name] ?? "")").font(.callout).foregroundStyle(.secondary) }
                 }.padding(.horizontal, 22).padding(.bottom, 22)
             }

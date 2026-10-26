@@ -34,11 +34,12 @@ struct TakeoverView: View {
                     HStack { Image(systemName: WindowAccess.trusted ? "checkmark.circle.fill" : "info.circle"); Text(WindowAccess.receiverStatusText).font(.caption) }
                     Divider()
                     Text("Chrome / Edge 的窗口与标签组通过每个个人资料中安装的 Openly 浏览器扩展连接。").foregroundStyle(.secondary)
+                    if let configured = store.state.bridgeIDs[bridgeApp] { Text(BrowserBridge.connectionHint(appID: bridgeApp, extensionID: configured)).font(.caption).foregroundStyle(.secondary) }
                     HStack {
                         Picker("浏览器", selection: $bridgeApp) { Text("Chrome").tag("com.google.Chrome"); Text("Edge").tag("com.microsoft.edgemac") }.frame(width: 170)
                         TextField("已安装扩展的 ID", text: $extensionID).textFieldStyle(.roundedBorder)
                         Button("连接扩展") {
-                            do { try BrowserBridge.install(appID: bridgeApp, extensionID: extensionID); store.state.bridgeIDs[bridgeApp] = extensionID; store.persist(); store.status = "已配置扩展连接" } catch { store.error = error.localizedDescription }
+                            do { try BrowserBridge.install(appID: bridgeApp, extensionID: extensionID); store.state.bridgeIDs[bridgeApp] = extensionID; store.persist(); store.status = BrowserBridge.connectionHint(appID: bridgeApp, extensionID: extensionID) } catch { store.error = error.localizedDescription }
                         }.disabled(!BrowserBridge.validExtensionID(extensionID))
                     }
                     Button("打开扩展文件夹与安装说明") {

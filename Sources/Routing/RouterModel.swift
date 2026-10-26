@@ -89,7 +89,7 @@ final class RouterModel {
     func refreshWindows() { windows = selectedAppID.map(WindowAccess.windows) ?? []; windowID = nil; genericNewWindow = !chromium && !vscode && selectedAppID.flatMap { WindowAccess.newWindowAction(appID: $0) } != nil }
     func selectApp(_ id: String) {
         selectedAppID = id; appChanged(); optionSearch = ""; step = "options"
-        if chromium, bridgeIDs[id] != nil, !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty { loadBrowserTargets() }
+        if chromium, bridgeIDs[id] != nil { loadBrowserTargets() }
     }
     func backToApps() {
         targetTask?.cancel(); generation += 1; loadingTargets = false; step = "apps"; error = nil

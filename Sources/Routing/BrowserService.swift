@@ -55,6 +55,21 @@ enum BrowserService {
 
 @MainActor enum BrowserBridge {
     static func validExtensionID(_ id: String) -> Bool { id.count == 32 && id.allSatisfy { ("a"..."p").contains(String($0)) } }
+    static func hostManifestURL(_ appID: String) -> URL {
+        BrowserService.dataRoot(appID).appendingPathComponent("NativeMessagingHosts/com.openly.bridge.json")
+    }
+    static func hostConfigured(appID: String, extensionID: String?) -> Bool {
+        guard let extensionID, validExtensionID(extensionID), FileManager.default.fileExists(atPath: hostManifestURL(appID).path),
+              let data = try? Data(contentsOf: hostManifestURL(appID)), let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let origins = manifest["allowed_origins"] as? [String] else { return false }
+        return origins.contains("chrome-extension://\(extensionID)/") && FileManager.default.isExecutableFile(atPath: (manifest["path"] as? String) ?? "")
+    }
+    static func connectionHint(appID: String, extensionID: String?) -> String {
+        guard let extensionID, validExtensionID(extensionID) else { return "未配置扩展 ID" }
+        guard FileManager.default.fileExists(atPath: hostManifestURL(appID).path) else { return "未注册 Native Messaging 主机" }
+        guard hostConfigured(appID: appID, extensionID: extensionID) else { return "主机路径或扩展 ID 不匹配" }
+        return "已注册，读取窗口时会按 Profile 连接"
+    }
     static func install(appID: String, extensionID: String) throws {
         guard validExtensionID(extensionID) else { throw OpenlyError("扩展 ID 格式不正确") }
         let host = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/OpenlyBridge")
