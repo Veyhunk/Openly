@@ -1,10 +1,10 @@
 # 打开方式接管与精准启动：可行性简报
 
-> 2026-10-27 · 基于项目静态检查及官方接口资料；性能数值为建议验收目标，尚未进行原型实测。
+> 2026-10-27 · 基于项目静态检查、官方接口资料及 VS Code 多窗口简单测试；性能数值为建议验收目标，尚未进行性能基准测试。
 
 ## 结论
 
-**总体可行，建议采用“按需启动的原生路由器 + 可选应用适配器”。** 基础接管、应用选择、Chrome Profile / 新窗口 / 无痕和 VS Code 新窗口可优先验证；精准选择已有窗口、标签组属于增强能力，需要对应应用接口或扩展配合。
+**总体可行，建议采用“按需启动的原生路由器 + 可选应用适配器”。** 基础接管、应用选择、Chrome Profile / 新窗口 / 无痕和 VS Code 新窗口可优先实现。VS Code 指定已有窗口采用“聚焦目标窗口 + CLI 复用打开”，简单测试已通过；浏览器窗口、标签组由对应应用接口或扩展支持。
 
 扫描应用声明只能得到文件格式候选，账号、窗口、分组需要单独查询。当前 Openly 已有扫描与关联修改能力，尚需补充处理器注册、打开事件接收、转发队列和精准启动适配。
 
@@ -20,9 +20,31 @@
 | 加入已打开标签组 | 高，需扩展。通过 `tabs` / `tabGroups` 查询窗口和组，创建标签后加入指定组；目标在同一 Profile 中解析，提交时复查是否仍存在。无痕内操作需用户额外允许扩展运行。[3] |
 | Edge | 可复用 Chromium 扩展核心逻辑，但安装位置、扩展 ID、Profile 路径与启动参数仍有差异。按“共享实现 + 少量配置”验证通过后一起交付。[4] |
 | VS Code 新窗口 / 最近窗口 | 高。官方 CLI 提供 `--new-window`、`--reuse-window`；后者指向最近活动窗口。[5] |
-| VS Code 任意指定窗口 | 中。官方 CLI 未提供通用窗口 ID 选择器。建议由运行在各窗口中的本地 UI 扩展注册会话及工作区，经本地 IPC 在对应窗口调用打开文件 API；需验证空窗口、同工作区多窗口和失效会话。[5][6] |
+| VS Code 指定已有窗口 | 可行，简单测试已通过。通过 macOS 辅助功能 API 选择并聚焦目标窗口，确认焦点后执行 `--reuse-window` 打开文件。首版采用按需窗口查询与 CLI 转发，需辅助功能授权；完整 AX 聚焦实现及复杂窗口场景继续验证。[5][6] |
+| 其他应用的多窗口兜底 | 可推广窗口发现与聚焦转发。读取到内容窗口即提供兼容选择，优先应用专用接口，其次聚焦后显式交付打开请求；最终是否复用该窗口取决于目标应用。新窗口采用逐应用验证的 CLI、脚本或语义化菜单动作。[10] |
 
 浏览器无痕参数、Profile 参数与 macOS 脚本支持应作为版本化适配能力维护。选择器只展示已验证可用的组合。
+
+## VS Code 指定窗口方案与测试
+
+推荐流程：展开 VS Code 时读取窗口列表 → 用户选择目标 → 收起 Openly 选择器 → 激活 VS Code 并置前目标窗口 → 确认焦点 → 执行 `code --reuse-window <文件路径>`。
+
+- **窗口定位：** 以进程与当前会话的 AX 窗口对象定位，标题用于展示。同名窗口保留为独立选项；提交前复查对象有效性。置前后确认目标成为焦点窗口，失败或超时返回选择器。[6]
+- **命令调用：** 定位所选 VS Code 安装包内的 CLI，通过参数数组传入文件路径。打开前复查焦点；窗口查询与短暂焦点观察在请求结束后释放。
+- **文件与目录：** 首版指定窗口操作用于文件。目录采用独立的“在新窗口打开”入口；若提供复用窗口打开目录，需明确提示可能替换当前工作区。
+- **焦点竞争：** 聚焦与 CLI 处理是两个步骤，用户切换到另一个 VS Code 窗口时仍可能改变目标。串行处理打开请求，并在调用前检查焦点；调用成功仅表示请求已提交。
+
+本次在现有 VS Code 会话中新建两个临时文本窗口 A、B，通过原生窗口菜单切换焦点，再分别执行 `--reuse-window` 打开另一份临时文件。窗口 A 的可访问树确认原文件与目标文件在同一窗口；窗口 B 的命令已执行，随后用户确认测试通过。
+
+**验证结论：** 简单多窗口场景支持“先聚焦，再复用打开”的方案。此次使用窗口菜单完成聚焦，产品中的 AX 自动聚焦、最小化、全屏/不同桌面、同名窗口及并发焦点竞争仍需专项验证；耗时与功耗另行测量。
+
+### 通用多窗口兼容
+
+将窗口枚举、会话对象定位、激活、焦点确认与请求去重抽为共用能力。专用适配器提供定向打开或新窗口命令；其余应用可采用“聚焦所选窗口 → NSWorkspace 显式向应用打开”的尽力兼容路径，返回请求交付结果。系统打开接口以应用为目标，读取到窗口本身不能证明内容会落入该窗口。[10]
+
+新窗口能力按应用命令验证，窗口数量只用于决定窗口选择内容。系统 `createsNewApplicationInstance` 表示启动新进程实例，其语义与创建内容窗口不同。[10] 权限缺失、聚焦失败、窗口失效时保留请求供重选。按应用及版本记录兼容测试结果，查询与焦点观察按请求释放。
+
+后缀批量配置、轻量选择器、Chrome／VS Code 目标层级及通用兜底的交互规则统一维护于[原生界面设计](native-ui-redesign.md#58-打开接管管理页)。
 
 ## 冷启动与后台功耗方案
 
@@ -52,7 +74,7 @@
 
 ## 推荐推进顺序
 
-先做一个最小原型：HTTP/HTTPS 接管、缓存选择器、Chrome Profile / 新窗口 / 无痕、VS Code 新窗口，并测冷启动与空闲资源。通过后，再验证浏览器扩展的“Profile → 窗口 → 分组”端到端路由和休眠唤醒；Edge 通过共享适配测试后并入。VS Code 指定窗口作为独立扩展能力验证。
+先做一个最小原型：按应用／类型选择接管后缀、HTTP/HTTPS 接管、缓存选择器、Chrome Profile / 新窗口 / 无痕、VS Code 新窗口与指定窗口，并测冷启动与空闲资源。VS Code 按已通过的焦点复用路径实现，抽取通用窗口兜底，补齐 AX 聚焦与逐应用兼容验证。随后验证浏览器扩展的“Profile → 窗口 → 分组”端到端路由和休眠唤醒；Edge 通过共享适配测试后并入。
 
 **最关键的技术风险是高级目标的低功耗发现与准确唤醒。** 基础接管已有标准系统路径；窗口与分组接口也具备能力，但组合体验和性能必须用原型证明。
 
@@ -63,7 +85,8 @@
 3. Chrome：[Tabs API](https://developer.chrome.com/docs/extensions/reference/api/tabs)、[Tab Groups API](https://developer.chrome.com/docs/extensions/reference/api/tabGroups)、[无痕扩展模式](https://developer.chrome.com/docs/extensions/reference/manifest/incognito)。
 4. Microsoft：[Chrome 扩展迁移到 Edge](https://learn.microsoft.com/en-us/microsoft-edge/extensions/developer-guide/port-chrome-extension)。
 5. VS Code：[官方命令行参数](https://code.visualstudio.com/docs/configure/command-line)。
-6. VS Code：[扩展 API](https://code.visualstudio.com/api/references/vscode-api)。指定窗口 IPC 为基于窗口内 API 的工程方案，尚待原型验证。
+6. Apple：[窗口置前 AXRaise](https://developer.apple.com/documentation/applicationservices/kaxraiseaction)、[设置辅助功能属性](https://developer.apple.com/documentation/applicationservices/1460434-axuielementsetattributevalue)。窗口置前后需另行确认焦点状态。
 7. Chrome：[Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)、[Service Worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)。
 8. CC Switch：[官方轻量模式发布说明](https://github.com/farion1231/cc-switch/blob/main/docs/release-notes/v3.13.0-zh.md)。
 9. Chrome：[远程调试参数变更](https://developer.chrome.com/blog/remote-debugging-port)。
+10. Apple：[向指定应用打开 URL](https://developer.apple.com/documentation/appkit/nsworkspace/open(_:withapplicationat:configuration:completionhandler:))、[新应用实例](https://developer.apple.com/documentation/appkit/nsworkspace/openconfiguration/createsnewapplicationinstance)。
