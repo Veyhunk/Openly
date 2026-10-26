@@ -1,91 +1,82 @@
 # Openly
 
-<div align="center">
-
-<img src="Assets/icon.png" width="128" alt="Openly icon">
-
-**打开方式，一目了然**
-
-macOS 文件打开方式管理工具 — 按后缀选 App，按 App 管后缀
-
-</div>
-
----
+**打开方式，一目了然。** 原生 macOS 文件关联管理与打开接管工具，支持 macOS 14 及以上。
 
 ## 功能
 
-- **扩展名视图** — 表格展示所有已知扩展名及默认打开 App，支持搜索、分类、系统/第三方筛选
-- **App 视图** — 查看每个已安装 App 管理的所有文件格式，显示版本和路径
-- **更换默认 App** — 为任意扩展名选择新的默认打开程序
-- **批量操作** — 多选扩展名，一键统一分配给同一个 App
-- **清除关联** — 解除扩展名与 App 的绑定，恢复未关联状态
-- **内置描述库** — 655 个扩展名的中文描述，分 13 大分类
-- **导出/导入** — 配置文件关联到 JSON，支持备份和恢复
-- **xattr 清理** — 检测并清除单文件级别的 OpenWith 覆盖
+- **文件类型与应用管理**：搜索、分类、系统／第三方筛选、排序、多选、类型别名预览、修改结果核验。
+- **打开接管**：按应用或类型批量选择后缀，接管网页链接，保存接管前应用并提供恢复。
+- **轻量选择器**：系统打开事件按需唤起，读取应用缓存，选择后转发；支持连续请求排队。
+- **Chrome / Edge**：个人资料、新窗口、无痕、新建临时会话；通过配套扩展选择已有窗口与标签组。
+- **VS Code**：新窗口、最近活动窗口、聚焦指定窗口后复用打开。
+- **其他多窗口应用**：辅助功能窗口查询与聚焦后兼容打开；识别原生“新建窗口”菜单动作。
+- **配置与排查**：JSON 导出／导入预览、恢复本工具保存的修改前设置、单文件 OpenWith 覆盖检测与清理。
 
-## 安装
+## 构建与使用
 
-### 从源码构建
-
-```bash
-# 要求：macOS 14+，Swift 6+
-git clone https://github.com/user/openly.git
-cd openly
-
-# 方式一：双击 build.command，菜单式操作
-open build.command
-
-# 方式二：命令行编译
-swift build -c release
-```
-
-### 构建菜单（双击 `build.command`）
-
-```
-┌──────────────────────────────────────┐
-│      Openly 1.0.0 — 构建工具          │
-├──────────────────────────────────────┤
-│  1  编译 (swift build)               │
-│  2  编译并运行                        │
-│  3  生成 App 图标                     │
-│  4  创建 .app Bundle                 │
-│  5  创建 DMG 安装包                   │
-│  6  一键构建 (清理+编译+打包)          │
-│  7  清理构建缓存                       │
-│  8  运行测试                          │
-│  0  退出                              │
-└──────────────────────────────────────┘
-```
-
-### Homebrew（即将支持）
+要求 Swift 6 工具链、macOS Command Line Tools；无需额外 Swift 包。
 
 ```bash
-brew install --cask openly
+# 交互菜单：方向键 / 数字快捷键
+./build.command
+
+# 编译并打包管理程序、接收器与浏览器桥接
+python3 scripts/package-app.py release
+
+# 打开构建产物
+open .build/Openly.app
 ```
 
-## 使用
+打包产物为 `.build/Openly.app`。日常使用前将它放入“应用程序”，再在“打开接管”页启用所需类型。修改会先显示实际系统类型及连带后缀；失败和待验证项目保留逐项结果。
 
-1. 启动 Openly
-2. **扩展名** 标签页查看所有已知文件格式
-3. 搜索或按分类筛选，点击右侧箭头更换默认 App
-4. **应用** 标签页查看已安装 App 管理的格式
-5. Cmd+R 刷新，Cmd+S 导出配置
+管理界面和接收器使用独立应用身份。系统将所选类型交给内嵌接收器；用户选定目标后显式转发，避免再次调用系统默认处理器。管理页扫描结果与恢复记录保存在 `~/Library/Application Support/Openly/state.json`。
 
-## 系统要求
+### 高级打开能力
 
-- macOS 14 Sonoma 及以上
-- Apple Silicon 或 Intel Mac
+- 指定窗口：在 macOS“隐私与安全性 → 辅助功能”中允许 **Openly Receiver**。接收器位于 `Openly.app/Contents/Helpers/`。
+- 浏览器窗口与标签组：按 [扩展安装说明](BrowserExtension/README.md) 加载配套扩展，在打开接管页填写扩展 ID。移动应用后重新连接，以更新本机桥接路径。
+- 新建临时会话：每次使用独立的新用户数据目录打开当前内容。
+- 通用窗口兼容：应用可能自行决定最终打开位置；专用适配优先使用其明确的窗口接口。
 
-## 技术
+## 验证
 
-原生 SwiftUI + AppKit 构建，纯 SPM 管理（无需 Xcode 项目文件）。使用 macOS Launch Services API 读取和修改文件关联。
+```bash
+swift build
+bash scripts/test.sh
+node scripts/test-browser-extension.cjs
 
-## 许可
+# 在项目 .build/checks 内注册独立测试类型，验证接管与恢复
+python3 scripts/package-app.py debug
+bash scripts/test.sh --integration
 
-MIT License
+# Release 接收器进程冷启动测量（需先打开管理页建立应用缓存）
+python3 scripts/package-app.py release
+swiftc -parse-as-library scripts/benchmark.swift -o .build/checks/benchmark
+.build/checks/benchmark
+```
 
----
+`test.sh` 直接编译生产代码并执行断言，兼容缺少 XCTest 模块的 Command Line Tools 环境。测试失败返回非零退出码。浏览器扩展测试覆盖窗口枚举、标签组路由、目标失效、部分失败与无效请求；Native Messaging 测试覆盖一次性令牌、重放拒绝和过期请求。
 
-<div align="center">
-<sub>Built for macOS · Inspired by Finder's "Open With"</sub>
-</div>
+[验证记录](docs/implementation-validation.md) 区分自动化、实机与待验证项目。
+
+## 发布打包
+
+```bash
+./scripts/project-launcher.sh package
+./scripts/project-launcher.sh dmg
+```
+
+本地构建使用 ad-hoc 签名。面向外部分发时需使用开发者证书签名并公证。
+
+## 代码入口
+
+| 目录 | 职责 |
+|---|---|
+| `Sources/Core` | 文件类型规划、系统关联读写、本地恢复记录 |
+| `Sources/Manager` | 原生管理界面、操作预览与结果、应用入口 |
+| `Sources/Routing` | 接收器选择器、窗口能力、浏览器与 VS Code 转发 |
+| `Sources/Services` | 应用扫描与内置描述库 |
+| `BridgeHost` / `BrowserExtension` | 按需浏览器扩展桥接 |
+| `Tests` / `scripts` | 自动化验证、原生打包与启动器 |
+
+设计依据：[原生界面设计](docs/native-ui-redesign.md)、[接管技术报告](docs/open-routing-feasibility.md)。

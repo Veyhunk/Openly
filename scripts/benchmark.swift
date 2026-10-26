@@ -2,7 +2,12 @@ import AppKit
 import Foundation
 
 @main struct Benchmark {
-    @MainActor static func main() async throws {
+    @MainActor static func main() async {
+        do { try await run() } catch {
+            FileHandle.standardError.write(Data("Benchmark stopped: \(error.localizedDescription)\n".utf8)); exit(1)
+        }
+    }
+    @MainActor static func run() async throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let app = root.appendingPathComponent(".build/Openly.app/Contents/Helpers/Openly Receiver.app")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Openly-bench-" + UUID().uuidString)
