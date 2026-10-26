@@ -5,11 +5,12 @@ import Observation
 struct ManagerView: View {
     @Bindable var store: AppStore
     @NativeState private var showPicker = false
+    @NativeState private var columnVisibility: NavigationSplitViewVisibility = .all
     @NativeFocus private var searchFocused: Bool
     @NativeState private var showInspector = false
     @NativeState private var sortOrder = [KeyPathComparator(\FileTypeRow.id)]
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $store.page) {
                 Section("管理") {
                     Label("文件类型", systemImage: "doc.text").tag("文件类型")
@@ -18,6 +19,7 @@ struct ManagerView: View {
                 }
                 Section("工具") { Label("检查文件", systemImage: "doc.text.magnifyingglass").tag("检查文件") }
             }.navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(spacing: 0) {
                 if store.page == "打开接管" { TakeoverView(store: store) }
@@ -33,13 +35,22 @@ struct ManagerView: View {
                 }.padding(.horizontal, 16).frame(height: 32)
             }
             .navigationTitle(store.page)
-            .toolbar {
-                ToolbarItem { Button { Task { await store.refresh() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.disabled(store.loading || store.busy) }
-                if ["文件类型", "应用"].contains(store.page) {
-                    ToolbarItem { Button("更换默认应用…") { showPicker = true }.disabled(store.selected.isEmpty) }
-                    ToolbarItem { Button("接管所选…") { store.prepare(Array(store.selected), target: RoutingRules.receiverID) }.disabled(store.selected.isEmpty) }
-                    ToolbarItem { Button { showInspector.toggle() } label: { Label("详情", systemImage: "info.circle") } }
+        }
+        .toolbar {
+            ToolbarItem(id: "openly.sidebar", placement: .navigation) {
+                Button {
+                    withAnimation { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly }
+                } label: {
+                    Label(columnVisibility == .detailOnly ? "显示侧栏" : "隐藏侧栏", systemImage: "sidebar.left")
                 }
+                .help(columnVisibility == .detailOnly ? "显示侧栏" : "隐藏侧栏")
+                .keyboardShortcut("s", modifiers: [.command, .control])
+            }
+            ToolbarItem(placement: .primaryAction) { Button { Task { await store.refresh() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.disabled(store.loading || store.busy) }
+            if ["文件类型", "应用"].contains(store.page) {
+                ToolbarItem(placement: .primaryAction) { Button("更换默认应用…") { showPicker = true }.disabled(store.selected.isEmpty) }
+                ToolbarItem(placement: .primaryAction) { Button("接管所选…") { store.prepare(Array(store.selected), target: RoutingRules.receiverID) }.disabled(store.selected.isEmpty) }
+                ToolbarItem(placement: .primaryAction) { Button { showInspector.toggle() } label: { Label("详情", systemImage: "info.circle") } }
             }
         }
         .task { await store.refresh() }
