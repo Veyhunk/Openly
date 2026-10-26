@@ -113,35 +113,84 @@ struct ManagerView: View {
     }
     var appsView: some View {
         HSplitView {
-            VStack {
-                TextField("搜索应用", text: $store.appSearch).textFieldStyle(.roundedBorder).focused($searchFocused).padding(12)
-                Picker("来源", selection: $store.appOrigin) { ForEach(["全部", "系统应用", "第三方应用"], id: \.self) { Text($0) } }.padding(.horizontal, 12)
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    TextField("搜索应用", text: $store.appSearch).textFieldStyle(.roundedBorder).focused($searchFocused)
+                    Button { store.appSearch = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).opacity(store.appSearch.isEmpty ? 0 : 1)
+                }.padding(.horizontal, 12).padding(.top, 12)
+                Picker("来源", selection: $store.appOrigin) { ForEach(["全部", "系统应用", "第三方应用"], id: \.self) { Text($0) } }.pickerStyle(.segmented).padding(12)
+                Divider()
                 List(store.visibleApps, selection: $store.appSelection) { app in
-                    HStack {
+                    HStack(spacing: 9) {
                         AppIcon(path: app.path)
-                        VStack(alignment: .leading) { Text(app.name); Text("默认打开 \(store.rows.filter { $0.appID == app.id }.count) 种").font(.caption).foregroundStyle(.secondary) }
-                    }.tag(app.id).padding(.vertical, 4)
-                }
-            }.frame(minWidth: 220, idealWidth: 240, maxWidth: 300)
-            if let app = store.selectedApp {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        AppIcon(path: app.path, size: 40)
-                        VStack(alignment: .leading) { Text(app.name).font(.title2); Text("版本 \(app.version ?? "—") · 声明支持 \(app.supportedExtensions.count) 种").foregroundStyle(.secondary) }
-                        Spacer()
-                        Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app.path)]) }
-                    }.padding([.horizontal, .top], 20)
-                    Text(app.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).padding(.horizontal, 20)
-                    HStack {
-                        Picker("范围", selection: $store.appScope) { ForEach(["全部相关", "当前默认", "声明支持"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
-                        TextField("搜索格式", text: $store.search).textFieldStyle(.roundedBorder)
-                        Button("设为默认…") { store.prepare(Array(store.selected), target: app.id) }.disabled(store.selected.isEmpty)
-                    }.padding(.horizontal, 16)
-                    typeTable
-                }.frame(minWidth: 420)
-            } else { ContentUnavailableView("选择一个应用", systemImage: "square.grid.2x2", description: Text("查看声明支持与当前默认的文件类型")) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name).lineLimit(1)
+                            Text("默认打开 \(store.rows.filter { $0.appID == app.id }.count) 种").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.tag(app.id).padding(.vertical, 3)
+                }.listStyle(.sidebar)
+            }
+            .frame(minWidth: 230, idealWidth: 270, maxWidth: 310, maxHeight: .infinity)
+            .background(Color(nsColor: .underPageBackgroundColor))
+
+            appDetailPane
+                .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    var appDetailPane: some View {
+        if let app = store.selectedApp {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 12) {
+                    AppIcon(path: app.path, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(app.name).font(.title2)
+                        Text("版本 \(app.version ?? "—") · 声明支持 \(app.supportedExtensions.count) 种")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app.path)]) }
+                }.padding(.horizontal, 20).padding(.vertical, 16)
+                Text(app.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).padding(.horizontal, 20).padding(.bottom, 12)
+                Divider()
+                HStack(spacing: 10) {
+                    Picker("范围", selection: $store.appScope) { ForEach(["全部相关", "当前默认", "声明支持"], id: \.self) { Text($0) } }.pickerStyle(.segmented).frame(width: 260)
+                    TextField("搜索格式", text: $store.search).textFieldStyle(.roundedBorder)
+                    Button("设为默认…") { store.prepare(Array(store.selected), target: app.id) }.disabled(store.selected.isEmpty)
+                }.padding(14)
+                appTypeTable(app)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            ContentUnavailableView("选择一个应用", systemImage: "square.grid.2x2", description: Text("查看声明支持与当前默认的文件类型"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+
+    func appTypeTable(_ app: AppInfo) -> some View {
+        VStack(spacing: 0) {
+            Table(store.filteredRows, selection: $store.selected) {
+                TableColumn("文件类型") { row in Text("." + row.id).monospaced() }.width(min: 80, ideal: 105, max: 140)
+                TableColumn("说明") { row in Text(row.description).lineLimit(1) }.width(min: 120, ideal: 210, max: 280)
+                TableColumn("当前默认") { row in Text(row.appName).lineLimit(1) }.width(min: 110, ideal: 165, max: 220)
+                TableColumn("关系") { row in
+                    let current = row.appID == app.id
+                    let declared = app.supportedExtensions.contains(row.id)
+                    Text(current && declared ? "默认 · 声明支持" : current ? "当前默认" : declared ? "声明支持" : "相关")
+                        .foregroundStyle(current ? Color.accentColor : Color.secondary)
+                }.width(min: 100, ideal: 135, max: 180)
+            }
+            .overlay { if store.filteredRows.isEmpty && !store.loading { ContentUnavailableView("没有匹配的格式", systemImage: "doc.text.magnifyingglass", description: Text("调整范围或搜索条件")) } }
+            HStack {
+                Text("显示 \(store.filteredRows.count) 种格式 · 已选 \(store.selected.count) 种").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+            }.padding(.horizontal, 14).frame(height: 30)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
 }
 
 struct AppIcon: View {
