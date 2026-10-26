@@ -44,7 +44,9 @@ actor AppScanner {
             }
         }
 
-        let sorted = allApps.sorted { a, b in
+        var unique: [String: AppInfo] = [:]
+        for app in allApps where unique[app.id] == nil { unique[app.id] = app }
+        let sorted = Array(unique.values).sorted { a, b in
             if a.isSystemApp != b.isSystemApp { return a.isSystemApp }
             return a.name.localizedStandardCompare(b.name) == .orderedAscending
         }
@@ -99,9 +101,7 @@ actor AppScanner {
         guard let plist = NSDictionary(contentsOf: infoPlistURL) else { return nil }
 
         let bundleID = plist["CFBundleIdentifier"] as? String ?? ""
-        let name = (plist["CFBundleDisplayName"] as? String)
-            ?? (plist["CFBundleName"] as? String)
-            ?? url.deletingPathExtension().lastPathComponent
+        let name = (plist["CFBundleDisplayName"] as? String) ?? url.deletingPathExtension().lastPathComponent
 
         let version = plist["CFBundleShortVersionString"] as? String
             ?? plist["CFBundleVersion"] as? String
@@ -111,7 +111,7 @@ actor AppScanner {
 
         let extensions = parseDocumentTypes(from: plist)
 
-        guard !extensions.isEmpty else { return nil }
+        guard !bundleID.isEmpty else { return nil }
 
         let iconName = plist["CFBundleIconFile"] as? String
         let iconPath: String? = if let icon = iconName {
@@ -125,7 +125,8 @@ actor AppScanner {
             version: version,
             isSystemApp: isSystem,
             supportedExtensions: extensions,
-            iconPath: iconPath
+            iconPath: iconPath,
+            supportedSchemes: (plist["CFBundleURLTypes"] as? [[String: Any]] ?? []).flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
         )
     }
 
@@ -138,7 +139,7 @@ actor AppScanner {
 
         for docType in docTypes {
             if let exts = docType["CFBundleTypeExtensions"] as? [String] {
-                allExtensions.formUnion(exts.map { $0.lowercased() })
+                allExtensions.formUnion(exts.map { RoutingRules.normalize($0) }.filter { RoutingRules.typeID($0) != nil })
             }
             if let utiStrings = docType["LSItemContentTypes"] as? [String] {
                 for utiString in utiStrings {

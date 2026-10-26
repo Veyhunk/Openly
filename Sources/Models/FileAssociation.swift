@@ -47,7 +47,7 @@ struct ExtensionInfo: Identifiable, Hashable {
 }
 
 /// 已安装 App 信息
-struct AppInfo: Identifiable, Hashable {
+struct AppInfo: Identifiable, Hashable, Codable, Sendable {
     let id: String                // Bundle ID
     let name: String              // 显示名称
     let path: String              // App 路径
@@ -55,6 +55,7 @@ struct AppInfo: Identifiable, Hashable {
     let isSystemApp: Bool         // 是否为系统原生 App
     let supportedExtensions: [String] // 该 App 声明的扩展名列表
     let iconPath: String?         // App 图标文件路径（icns）
+    var supportedSchemes: [String]? = nil
 
     static func == (lhs: AppInfo, rhs: AppInfo) -> Bool {
         lhs.id == rhs.id
