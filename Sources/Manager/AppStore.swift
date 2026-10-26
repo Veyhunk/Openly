@@ -57,10 +57,10 @@ final class AppStore {
         defer { loading = false }
         let loaded = await scanner.scanAllApps(forceRefresh: true)
         let info = await descriptions.allExtensionsInfo()
-        var names = Set(info.map(\.ext))
+        var names = Set(info.map { RoutingRules.normalize($0.ext) })
         names.formUnion(loaded.flatMap(\.supportedExtensions))
         names.formUnion(state.records.flatMap(\.extensions))
-        let lookup = Dictionary(info.map { ($0.ext, ($0.desc ?? "", $0.category ?? "其他")) }, uniquingKeysWith: { a, _ in a })
+        let lookup = Dictionary(info.map { (RoutingRules.normalize($0.ext), ($0.desc ?? "", $0.category ?? "其他")) }, uniquingKeysWith: { a, _ in a })
         var newRows: [FileTypeRow] = []
         for (i, ext) in names.sorted().enumerated() {
             guard let type = RoutingRules.typeID(ext) else { continue }

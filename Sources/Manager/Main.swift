@@ -18,10 +18,20 @@ struct OpenlyMain {
     var store: AppStore?
     let router = RouterModel()
     var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID }
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURL(_:reply:)), forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+    }
+    @objc func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let value = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URL(string: value) else { return }
+        application(NSApp, open: [url])
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(isReceiver ? .accessory : .regular)
         installMenus()
         if !isReceiver { showManager() }
+        else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.routeWindow == nil, self.router.urls.isEmpty else { return }; NSApp.terminate(nil)
+        } }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !isReceiver { showManager() }; return true
@@ -36,7 +46,10 @@ struct OpenlyMain {
             router.onWillOpen = { [weak self] in self?.routeWindow?.orderOut(nil) }
             router.onFailure = { [weak self] in self?.routeWindow?.makeKeyAndOrderFront(nil); NSApp.activate() }
         }
-        routeWindow?.makeKeyAndOrderFront(nil); NSApp.activate()
+        routeWindow?.makeKeyAndOrderFront(nil)
+        if PerformanceProbe.enabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.terminate(nil) }
+        } else { NSApp.activate() }
     }
     func showManager() {
         if managerWindow == nil {
@@ -95,5 +108,5 @@ struct OpenlyMain {
     @objc func refresh() { Task { await store?.refresh() } }
     @objc func exportConfig() { store?.exportConfig() }
     @objc func importConfig() { store?.importConfig() }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Openly", .applicationVersion: "2.0", .credits: NSAttributedString(string: "打开方式，一目了然")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Openly", .applicationVersion: AppVersion.display, .credits: NSAttributedString(string: "打开方式，一目了然")]) }
 }

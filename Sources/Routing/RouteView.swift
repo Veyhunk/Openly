@@ -40,7 +40,7 @@ struct RouteView: View {
                                 if !model.windows.isEmpty { Text(model.vscode ? "指定窗口" : "指定窗口（兼容打开）").tag("window") }
                                 if model.chromium && model.bridgeIDs[app.id] != nil { Text("浏览器窗口 / 标签组").tag("browserWindow") }
                             }.pickerStyle(.radioGroup)
-                            if model.mode == "temporary" { Text("使用全新的临时用户数据目录启动 Chrome。").foregroundStyle(.secondary) }
+                            if model.mode == "temporary" { Text("使用全新的临时用户数据目录启动浏览器。").foregroundStyle(.secondary) }
                             if model.mode == "window" {
                                 Picker("窗口", selection: $model.windowID) {
                                     Text("选择窗口").tag(nil as Int?)
@@ -70,7 +70,7 @@ struct RouteView: View {
             }.padding(16)
         }
         .frame(minWidth: 660, minHeight: 440)
-        .onAppear { searchFocused = true }
+        .onAppear { searchFocused = true; PerformanceProbe.visible() }
         .onChange(of: model.focusRequest) { searchFocused = true }
         .onChange(of: model.selectedAppID) { model.appChanged() }
         .onChange(of: model.profile) { model.profileChanged() }
