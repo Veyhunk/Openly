@@ -12,6 +12,11 @@ actor AppScanner {
         URL(fileURLWithPath: "/Applications"),
         URL(fileURLWithPath: "/System/Applications"),
         URL(fileURLWithPath: "/System/Applications/Utilities"),
+        // macOS 系统工具分布在 CoreServices，不能只扫描 Applications。
+        URL(fileURLWithPath: "/System/Library/CoreServices/Applications"),
+        URL(fileURLWithPath: "/System/Library/CoreServices"),
+        URL(fileURLWithPath: "/Library/CoreServices"),
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/CoreServices"),
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
     ]
 
