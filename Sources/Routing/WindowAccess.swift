@@ -9,6 +9,12 @@ struct AppWindow: Identifiable {
 }
 @MainActor enum WindowAccess {
     static var trusted: Bool { AXIsProcessTrusted() }
+    static var receiverStatusText: String {
+        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/Openly Receiver.app")
+        if !FileManager.default.fileExists(atPath: helper.path) { return "当前构建没有内嵌 Openly Receiver，请使用完整 Openly.app。" }
+        if !trusted { return "当前管理程序尚未获辅助功能权限；Receiver 仍需单独授权。" }
+        return "管理程序权限可用；Receiver 权限需在系统列表中单独确认。"
+    }
     static func openSettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     static func windows(appID: String) -> [AppWindow] {
         guard trusted else { return [] }

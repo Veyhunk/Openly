@@ -29,9 +29,11 @@ struct TakeoverView: View {
             }
             GroupBox("应用打开能力") {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack { Text("窗口选择"); Spacer(); Text("请为 Openly Receiver 授予辅助功能权限").foregroundStyle(.secondary); Button("前往系统设置") { WindowAccess.openSettings() } }
+                    HStack { Text("窗口选择"); Spacer(); Text(WindowAccess.trusted ? "管理程序已获辅助功能权限" : "管理程序未获辅助功能权限").foregroundStyle(WindowAccess.trusted ? .green : .secondary); Button("前往系统设置") { WindowAccess.openSettings() } }
+                    Text("权限按应用身份分别保存。请在列表中授权 Openly Receiver；它位于 Openly.app/Contents/Helpers/。授权后重新打开接管窗口，窗口数量会显示在高级卡片中。").font(.caption).foregroundStyle(.secondary)
+                    HStack { Image(systemName: WindowAccess.trusted ? "checkmark.circle.fill" : "info.circle"); Text(WindowAccess.receiverStatusText).font(.caption) }
                     Divider()
-                    Text("Chrome / Edge 的窗口与标签组通过 Openly 浏览器扩展连接。").foregroundStyle(.secondary)
+                    Text("Chrome / Edge 的窗口与标签组通过每个个人资料中安装的 Openly 浏览器扩展连接。").foregroundStyle(.secondary)
                     HStack {
                         Picker("浏览器", selection: $bridgeApp) { Text("Chrome").tag("com.google.Chrome"); Text("Edge").tag("com.microsoft.edgemac") }.frame(width: 170)
                         TextField("已安装扩展的 ID", text: $extensionID).textFieldStyle(.roundedBorder)

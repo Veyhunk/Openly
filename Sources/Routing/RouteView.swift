@@ -80,10 +80,10 @@ struct RouteView: View {
                                 ForEach(model.availableOptions.filter { $0.section == section }) { option in
                                     Button { Task { await model.choose(option) } } label: {
                                         VStack(alignment: .leading, spacing: 10) {
-                                            Image(systemName: option.symbol).font(.title2).foregroundStyle(.tint)
+                                            Image(systemName: option.symbol).font(.title3).foregroundStyle(.tint)
                                             Text(option.title).font(.headline).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
                                             Text(option.detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                        }.frame(maxWidth: .infinity, minHeight: 98, alignment: .topLeading).padding(16)
+                                        }.frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading).padding(12)
                                     }.buttonStyle(AppTileStyle()).disabled(model.busy).help(option.title + " — " + option.detail)
                                 }
                             }
@@ -107,7 +107,7 @@ struct RouteView: View {
                 Spacer()
                 Button(model.step == "apps" ? "取消" : "返回应用") { if model.step == "apps" { model.onDismiss?() } else { model.backToApps() } }.keyboardShortcut(.cancelAction).disabled(model.busy)
             }
-        }.padding(16)
+        }.padding(12)
     }
     func chooseOtherApp() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.application]
