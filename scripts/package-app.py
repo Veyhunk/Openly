@@ -44,7 +44,7 @@ for bundle, identifier, agent in [(app, 'com.openly.app', False), (receiver, 'co
     }
     if agent:
         info.update({
-            'LSUIElement': True,
+            'LSUIElement': True, 'OpenlyReceiver': True,
             'CFBundleURLTypes': [{'CFBundleURLName': 'Web links', 'CFBundleURLSchemes': ['http', 'https'], 'CFBundleTypeRole': 'Viewer'}],
             'CFBundleDocumentTypes': [{'CFBundleTypeName': 'Files', 'CFBundleTypeRole': 'Viewer', 'LSHandlerRank': 'None', 'LSItemContentTypes': ['public.data', 'public.content'], 'CFBundleTypeExtensions': extensions}]
         })

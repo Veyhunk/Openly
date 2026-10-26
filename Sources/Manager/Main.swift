@@ -17,8 +17,9 @@ struct OpenlyMain {
     var routeWindow: NSWindow?
     var store: AppStore?
     let router = RouterModel()
-    var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID }
+    var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID || Bundle.main.object(forInfoDictionaryKey: "OpenlyReceiver") as? Bool == true }
     func applicationWillFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(isReceiver ? .accessory : .regular)
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURL(_:reply:)), forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
     }
     @objc func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
@@ -29,27 +30,59 @@ struct OpenlyMain {
         NSApp.setActivationPolicy(isReceiver ? .accessory : .regular)
         installMenus()
         if !isReceiver { showManager() }
-        else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        else {
+            if routeWindow != nil { showChooser() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.routeWindow == nil, self.router.urls.isEmpty else { return }; NSApp.terminate(nil)
         } }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !isReceiver { showManager() }; return true
+        if !isReceiver { showManager() } else if routeWindow != nil { showChooser() }; return true
     }
     func application(_ application: NSApplication, open urls: [URL]) {
         router.enqueue(urls)
         if routeWindow == nil {
-            let window = makeWindow(title: "用哪个应用打开？", size: NSSize(width: 760, height: 540))
+            let window = makeWindow(title: "用哪个应用打开？", size: NSSize(width: 820, height: 620))
             window.contentView = NSHostingView(rootView: RouteView(model: router))
+            window.minSize = NSSize(width: 640, height: 460)
+            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             window.delegate = self; routeWindow = window
             router.onDismiss = { [weak self] in self?.finishRequest() }
             router.onWillOpen = { [weak self] in self?.routeWindow?.orderOut(nil) }
-            router.onFailure = { [weak self] in self?.routeWindow?.makeKeyAndOrderFront(nil); NSApp.activate() }
+            router.onFailure = { [weak self] in self?.showChooser() }
         }
-        routeWindow?.makeKeyAndOrderFront(nil)
+        if !router.busy { showChooser() }
+    }
+    func showChooser() {
+        guard let window = routeWindow else { return }
         if PerformanceProbe.enabled {
+            window.orderFront(nil)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.terminate(nil) }
-        } else { NSApp.activate() }
+            return
+        }
+        window.deminiaturize(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, !self.router.busy else { return }
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            window.makeKeyAndOrderFront(nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak window] in
+            guard let self, let window, window.isVisible, !window.isKeyWindow, !self.router.busy else { return }
+            window.level = .floating
+            window.orderFrontRegardless()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak window] in
+            if let window { PerformanceProbe.recordFocus(window) }
+        }
+    }
+    func windowDidBecomeKey(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === routeWindow { window.level = .normal }
+    }
+    func windowDidResignKey(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === routeWindow { window.level = .normal }
     }
     func showManager() {
         if managerWindow == nil {
@@ -66,7 +99,7 @@ struct OpenlyMain {
         w.title = title; w.isReleasedWhenClosed = false; w.center(); return w
     }
     func finishRequest() {
-        if router.next() { routeWindow?.makeKeyAndOrderFront(nil); NSApp.activate(); return }
+        if router.next() { showChooser(); return }
         routeWindow?.close(); routeWindow = nil
         if isReceiver { NSApp.terminate(nil) }
     }

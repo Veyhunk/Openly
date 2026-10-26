@@ -9,14 +9,15 @@ import Foundation
     }
     @MainActor static func run() async throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let app = root.appendingPathComponent(".build/Openly.app/Contents/Helpers/Openly Receiver.app")
+        let app = ProcessInfo.processInfo.environment["OPENLY_BENCH_APP"].map { URL(fileURLWithPath: $0) } ?? root.appendingPathComponent(".build/Openly.app/Contents/Helpers/Openly Receiver.app")
+        let appID = Bundle(url: app)?.bundleIdentifier ?? "com.openly.receiver"
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Openly-bench-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let file = folder.appendingPathComponent("probe.txt"); try Data("benchmark".utf8).write(to: file)
         var samples: [Double] = []
         for i in 0..<10 {
-            guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.openly.receiver").isEmpty else { throw NSError(domain: "Close existing receiver before benchmark", code: 1) }
+            guard NSRunningApplication.runningApplications(withBundleIdentifier: appID).isEmpty else { throw NSError(domain: "Close existing receiver before benchmark", code: 1) }
             let metric = folder.appendingPathComponent("\(i).txt")
             let config = NSWorkspace.OpenConfiguration(); config.activates = false
             config.environment = ["OPENLY_BENCHMARK": "1", "OPENLY_METRICS_PATH": metric.path, "OPENLY_BENCH_STARTED": String(ProcessInfo.processInfo.systemUptime)]
