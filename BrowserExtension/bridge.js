@@ -42,6 +42,9 @@
     await chrome.tabs.remove(own.id);
   } catch (error) {
     status.textContent = `连接失败：${error.message}。可关闭本页后返回 Openly。`;
-    try { await send({ action: 'complete', result: { error: error.message } }); } catch (_) {}
+    try {
+      const receipt = await send({ action: 'complete', result: { error: error.message } });
+      if (own?.id != null && (receipt.ok || /Expired or consumed/.test(error.message))) await chrome.tabs.remove(own.id);
+    } catch (_) {}
   }
 })();

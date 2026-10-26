@@ -9,6 +9,9 @@ final class RouterModel {
     var apps: [AppInfo] = []
     var selectedAppID: String?
     var search = ""
+    var step = "apps"
+    var onlyCompatible = true
+    var optionSearch = ""
     var focusRequest = 0
     var profile = "Default"
     var profiles: [BrowserProfile] = []
@@ -19,7 +22,8 @@ final class RouterModel {
     var groupID: Int?
     var windows: [AppWindow] = []
     var genericNewWindow = false
-    var snapshot = BrowserSnapshot(windows: [], groups: [])
+    var browserSnapshots: [String: BrowserSnapshot] = [:]
+    var targetErrors: [String: String] = [:]
     var busy = false
     var loadingTargets = false
     var error: String?
@@ -34,7 +38,7 @@ final class RouterModel {
     var selectedApp: AppInfo? { apps.first { $0.id == selectedAppID } }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
-    var candidates: [AppInfo] { apps.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }.sorted { a,b in
+    var candidates: [AppInfo] { apps.filter { (!onlyCompatible || supports($0)) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }.sorted { a,b in
         let ca = supports(a), cb = supports(b)
         if ca != cb { return ca }
         return a.name.localizedStandardCompare(b.name) == .orderedAscending
@@ -72,42 +76,54 @@ final class RouterModel {
     func cancelAll() { targetTask?.cancel(); queue = []; urls = [] }
     func resetTarget() {
         targetTask?.cancel(); generation += 1; selectedAppID = nil; mode = "default"; profile = "Default"
-        windows = []; snapshot = .init(windows: [], groups: []); error = nil; search = ""; allowUnsupported = false
+        windows = []; browserSnapshots = [:]; targetErrors = [:]; error = nil; search = ""; optionSearch = ""; step = "apps"; onlyCompatible = true; allowUnsupported = false
     }
     func appChanged() {
         targetTask?.cancel(); generation += 1; loadingTargets = false
         mode = "default"; windowID = nil; browserWindowID = nil; groupID = nil
-        snapshot = .init(windows: [], groups: []); allowUnsupported = false
-        profiles = selectedAppID.map(BrowserService.profiles) ?? []
+        browserSnapshots = [:]; targetErrors = [:]; allowUnsupported = false
+        profiles = chromium ? (selectedAppID.map(BrowserService.profiles) ?? []) : []
         profile = profiles.first?.id ?? "Default"
         refreshWindows()
     }
     func refreshWindows() { windows = selectedAppID.map(WindowAccess.windows) ?? []; windowID = nil; genericNewWindow = !chromium && !vscode && selectedAppID.flatMap { WindowAccess.newWindowAction(appID: $0) } != nil }
-    func profileChanged() { targetTask?.cancel(); generation += 1; loadingTargets = false; snapshot = .init(windows: [], groups: []); browserWindowID = nil; groupID = nil }
+    func selectApp(_ id: String) {
+        selectedAppID = id; appChanged(); optionSearch = ""; step = "options"
+        if chromium, bridgeIDs[id] != nil, !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty { loadBrowserTargets() }
+    }
+    func backToApps() {
+        targetTask?.cancel(); generation += 1; loadingTargets = false; step = "apps"; error = nil
+    }
     func loadBrowserTargets() {
         guard let app = selectedApp, let extID = bridgeIDs[app.id] else { error = "请先在打开接管页连接扩展"; return }
-        targetTask?.cancel(); generation += 1; let version = generation; let profile = profile
-        loadingTargets = true; error = nil
+        targetTask?.cancel(); generation += 1; let version = generation; let profiles = profiles
+        loadingTargets = true; error = nil; targetErrors = [:]
         targetTask = Task {
-            do {
-                let data = try await BrowserBridge.request(app: app, profile: profile, extensionID: extID, payload: ["action": "list"])
-                let value = try JSONDecoder().decode(BrowserSnapshot.self, from: data)
-                guard generation == version else { return }
-                snapshot = value; loadingTargets = false; onFailure?()
-            } catch {
-                guard generation == version else { return }
-                loadingTargets = false; self.error = error.localizedDescription; onFailure?()
+            for p in profiles {
+                guard generation == version, !Task.isCancelled else { return }
+                do {
+                    let data = try await BrowserBridge.request(app: app, profile: p.id, extensionID: extID, payload: ["action": "list"])
+                    let value = try JSONDecoder().decode(BrowserSnapshot.self, from: data)
+                    guard generation == version else { return }
+                    browserSnapshots[p.id] = value
+                } catch {
+                    guard generation == version else { return }
+                    targetErrors[p.name] = error.localizedDescription
+                }
+                if !busy { onFailure?() }
             }
+            if generation == version { loadingTargets = false }
         }
     }
     var canOpen: Bool {
-        guard let app = selectedApp, !busy, !loadingTargets, supports(app) || allowUnsupported else { return false }
+        guard let app = selectedApp, !busy, supports(app) || allowUnsupported else { return false }
         if mode == "window" { return windowID != nil }
         if mode == "browserWindow" { return browserWindowID != nil }
         return true
     }
     func openSelected() async {
         guard let app = selectedApp, canOpen else { return }
+        targetTask?.cancel(); generation += 1; loadingTargets = false
         busy = true; error = nil
         defer { busy = false }
         let items = urls

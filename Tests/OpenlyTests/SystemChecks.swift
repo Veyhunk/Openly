@@ -31,6 +31,22 @@ import UniformTypeIdentifiers
         try await NSWorkspace.shared.setDefaultApplication(at: fixture, toOpen: type)
         for _ in 0..<10 where AssociationService.current(typeID) != appID { try await Task.sleep(for: .milliseconds(100)) }
         guard AssociationService.current(typeID) == appID else { throw OpenlyError("原始应用设置未生效：current=\(AssociationService.current(typeID) ?? "nil"), url=\(String(describing: NSWorkspace.shared.urlForApplication(toOpen: type))), apps=\(NSWorkspace.shared.urlsForApplications(toOpen: type)), registered=\(String(describing: NSWorkspace.shared.urlForApplication(withBundleIdentifier: appID)))") }
+        if CommandLine.arguments.contains("--legacy-probe") {
+            let target = folder.appendingPathComponent("Target.app")
+            try fm.copyItem(at: fixture, to: target)
+            var targetInfo = plist
+            let targetID = appID + ".target"
+            targetInfo["CFBundleIdentifier"] = targetID
+            targetInfo["CFBundleDocumentTypes"] = [["CFBundleTypeName": "Probe", "CFBundleTypeRole": "Viewer", "LSHandlerRank": "Alternate", "LSItemContentTypes": [typeID]]]
+            try PropertyListSerialization.data(fromPropertyList: targetInfo, format: .xml, options: 0).write(to: target.appendingPathComponent("Contents/Info.plist"))
+            let signing = Process(); signing.executableURL = URL(fileURLWithPath: "/usr/bin/codesign"); signing.arguments = ["--force", "--sign", "-", target.path]; try signing.run(); signing.waitUntilExit()
+            LSRegisterURL(target as CFURL, true)
+            let status = LSSetDefaultRoleHandlerForContentType(typeID as CFString, .all, targetID as CFString)
+            try await Task.sleep(for: .seconds(2))
+            print("LEGACY status=\(status), expected=\(targetID), current=\(AssociationService.current(typeID) ?? "nil"), legacyRead=\(LSCopyDefaultRoleHandlerForContentType(typeID as CFString, .all)?.takeRetainedValue() as String? ?? "nil")")
+            let unregister = Process(); unregister.executableURL = URL(fileURLWithPath: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"); unregister.arguments = ["-u", target.path]; try unregister.run(); unregister.waitUntilExit()
+            return
+        }
         let store = AppStore()
         store.prepare([ext], target: RoutingRules.receiverID)
         guard store.plan.count == 1, store.plan[0].id == typeID else { throw OpenlyError("测试类型预览不正确") }
