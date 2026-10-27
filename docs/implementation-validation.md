@@ -58,7 +58,7 @@ Release 构建；应用缓存已建立；每次接收器进程均重新启动。
 
 ## 批量确认调查
 
-批量接管使用临时的轻量 Receiver 注册副本：副本只声明本次所选 UTI，并以 `LSHandlerRank=Owner` 一次注册；注册结果直接按类型重新读取并核验，避免对每个 UTI 调用会触发独立确认的写入接口。副本保留在 Openly 的应用支持目录中供已接管类型继续唤起。
+批量接管使用临时的轻量 Receiver 注册副本：副本只声明本次所选 UTI，并以 `LSHandlerRank=Owner` 注册。低于 macOS 26.4 时可按注册结果批量核验；macOS 26.4 及以上会由系统对每个默认应用变更要求确认，公开 API 没有合并这些确认的接口，界面会明确提示逐项确认。副本保留在 Openly 的应用支持目录中供已接管类型继续唤起。
 
 浏览器 Profile 读取同时展示 `Local State` 中的 `user_name`（无邮箱时回退到 `gaia_name`）。Chrome/Edge 已运行时，普通 Profile、扩展桥接和新窗口启动统一通过 `open -n --args --profile-directory=...`，避免 Chromium 单例进程吞掉 Profile 参数。
 

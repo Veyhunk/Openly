@@ -4,6 +4,10 @@ import CoreServices
 
 @MainActor
 enum AssociationService {
+    static var requiresPerTypeConfirmation: Bool {
+        if #available(macOS 26.4, *) { return true }
+        return false
+    }
     static func current(_ id: String) -> String? {
         let url: URL?
         if id.hasPrefix("scheme:") {

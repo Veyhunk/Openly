@@ -258,7 +258,7 @@ struct PlanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(store.restoring ? "预览恢复范围" : "预览更改范围").font(.title2)
-            Text("\(store.plan.count) 个文件类型或协议 · 一次确认后批量写入并逐项核验").foregroundStyle(.secondary)
+            Text(AssociationService.requiresPerTypeConfirmation ? "\(store.plan.count) 个文件类型或协议 · macOS 将按类型确认，完成后逐项核验" : "\(store.plan.count) 个文件类型或协议 · 一次确认后批量写入并逐项核验").foregroundStyle(.secondary)
             List {
                 ForEach(store.plan) { change in
                     HStack {
@@ -283,7 +283,7 @@ struct PlanView: View {
             }
             HStack {
                 if store.busy { ProgressView().controlSize(.small); Text("已处理 \(store.results.count) 项"); Spacer(); Button("停止后续操作") { store.stop = true } }
-                else { Spacer(); Button("取消") { dismiss() }.keyboardShortcut(.cancelAction); Button(store.restoring ? "确认恢复所选 \(store.planSelection.count) 项" : "一次确认并应用 \(store.planSelection.count) 项") { Task { await store.execute() } }.keyboardShortcut(.defaultAction).disabled(store.planSelection.isEmpty) }
+                else { Spacer(); Button("取消") { dismiss() }.keyboardShortcut(.cancelAction); Button(store.restoring ? "确认恢复所选 \(store.planSelection.count) 项" : (AssociationService.requiresPerTypeConfirmation ? "开始接管并逐项确认" : "一次确认并应用 \(store.planSelection.count) 项")) { Task { await store.execute() } }.keyboardShortcut(.defaultAction).disabled(store.planSelection.isEmpty) }
             }
         }.padding(24).frame(width: 680, height: 510).interactiveDismissDisabled(store.busy)
     }
