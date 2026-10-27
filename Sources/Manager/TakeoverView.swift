@@ -6,18 +6,30 @@ struct TakeoverView: View {
     @NativeState private var showAdd = false
     @NativeState private var selection = Set<String>()
     @NativeState private var search = ""
+    @NativeState private var stateFilter = "全部"
+    @NativeState private var sortOrder = [KeyPathComparator(\AssociationRecord.id)]
     @NativeState private var bridgeApp = "com.google.Chrome"
     @NativeState private var extensionID = ""
-    var records: [AssociationRecord] { store.state.records.filter { $0.targetAppID == RoutingRules.receiverID && !$0.id.hasPrefix("scheme:") && (search.isEmpty || $0.extensions.joined(separator: " ").localizedCaseInsensitiveContains(search)) } }
+    var records: [AssociationRecord] {
+        store.state.records.filter { record in
+            guard record.targetAppID == RoutingRules.receiverID, !record.id.hasPrefix("scheme:") else { return false }
+            let claimed = AssociationService.current(record.id) == RoutingRules.receiverID
+            let matchesState = stateFilter == "全部" || (stateFilter == "已接管" && claimed) || (stateFilter == "未接管" && !claimed)
+            return matchesState && (search.isEmpty || record.extensions.joined(separator: " ").localizedCaseInsensitiveContains(search) || record.id.localizedCaseInsensitiveContains(search))
+        }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { Text("文件后缀").font(.title2); Spacer(); Button("添加接管后缀…") { showAdd = true }.buttonStyle(.borderedProminent) }
             Text("打开时由你选择应用。关闭管理窗口后仍可按需接收打开请求。").foregroundStyle(.secondary)
-            TextField("搜索接管后缀", text: $search).textFieldStyle(.roundedBorder)
-            Table(records, selection: $selection) {
-                TableColumn("后缀") { r in Text(r.extensions.map { "." + $0 }.joined(separator: ", ")) }
-                TableColumn("接管前应用") { r in Text(AssociationService.name(r.previousAppID)) }
-                TableColumn("当前状态") { r in Text(AssociationService.current(r.id) == RoutingRules.receiverID ? "已接管" : "已被更改 / 未生效") }
+            HStack {
+                TextField("搜索接管后缀", text: $search).textFieldStyle(.roundedBorder)
+                Picker("状态", selection: $stateFilter) { ForEach(["全部", "已接管", "未接管"], id: \.self) { Text($0) } }.frame(width: 150)
+            }
+            Table(records.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+                TableColumn("后缀", value: \.id) { r in Text(r.extensions.map { "." + $0 }.joined(separator: ", ")) }
+                TableColumn("接管前应用", value: \.previousAppSortKey) { r in Text(AssociationService.name(r.previousAppID)) }
+                TableColumn("当前状态", value: \.statusSortKey) { r in Text(AssociationService.current(r.id) == RoutingRules.receiverID ? "已接管" : "已被更改 / 未生效") }
             }.frame(minHeight: 150)
             HStack { Text("\(records.count) 个系统类型 · 已选 \(selection.count) 项").foregroundStyle(.secondary); Spacer(); Button("停止所选接管…") { store.prepareRestore(records.filter { selection.contains($0.id) }) }.disabled(selection.isEmpty); Button("停止全部接管…") { store.prepareRestore(store.state.records.filter { $0.targetAppID == RoutingRules.receiverID }) }.disabled(!store.state.records.contains { $0.targetAppID == RoutingRules.receiverID }) }
             GroupBox("网页链接") {

@@ -9,6 +9,7 @@ struct ManagerView: View {
     @NativeFocus private var searchFocused: Bool
     @NativeState private var showInspector = false
     @NativeState private var sortOrder = [KeyPathComparator(\FileTypeRow.id)]
+    @NativeState private var appSortOrder = [KeyPathComparator(\FileTypeRow.id)]
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $store.page) {
@@ -47,11 +48,6 @@ struct ManagerView: View {
                 .keyboardShortcut("s", modifiers: [.command, .control])
             }
             ToolbarItem(placement: .primaryAction) { Button { Task { await store.refresh() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.disabled(store.loading || store.busy) }
-            if ["文件类型", "应用"].contains(store.page) {
-                ToolbarItem(placement: .primaryAction) { Button("更换默认应用…") { showPicker = true }.disabled(store.selected.isEmpty) }
-                ToolbarItem(placement: .primaryAction) { Button("接管所选…") { store.prepare(Array(store.selected), target: RoutingRules.receiverID) }.disabled(store.selected.isEmpty) }
-                ToolbarItem(placement: .primaryAction) { Button { showInspector.toggle() } label: { Label("详情", systemImage: "info.circle") } }
-            }
         }
         .task { await store.refresh() }
         .onChange(of: store.searchRequest) { searchFocused = true }
@@ -76,6 +72,8 @@ struct ManagerView: View {
                 if !store.search.isEmpty || store.category != "全部" || store.source != "全部" {
                     Button("清除") { store.search = ""; store.category = "全部"; store.source = "全部" }
                 }
+                Spacer()
+                Button { showInspector.toggle() } label: { Label("类型详情", systemImage: "info.circle") }.buttonStyle(.bordered)
             }.padding(16)
             typeTable
         }
@@ -158,7 +156,9 @@ struct ManagerView: View {
                 HStack(spacing: 10) {
                     Picker("范围", selection: $store.appScope) { ForEach(["全部相关", "当前默认", "声明支持"], id: \.self) { Text($0) } }.pickerStyle(.segmented).frame(width: 260)
                     TextField("搜索格式", text: $store.search).textFieldStyle(.roundedBorder)
-                    Button("设为默认…") { store.prepare(Array(store.selected), target: app.id) }.disabled(store.selected.isEmpty)
+                    Spacer()
+                    Button("设为默认…") { showPicker = true }.disabled(store.selected.isEmpty)
+                    Button("交给 Openly 接管…") { store.prepare(Array(store.selected), target: RoutingRules.receiverID) }.disabled(store.selected.isEmpty)
                 }.padding(14)
                 appTypeTable(app)
             }
@@ -171,17 +171,25 @@ struct ManagerView: View {
 
     func appTypeTable(_ app: AppInfo) -> some View {
         VStack(spacing: 0) {
-            Table(store.filteredRows, selection: $store.selected) {
-                TableColumn("文件类型") { row in Text("." + row.id).monospaced() }.width(min: 80, ideal: 105, max: 140)
-                TableColumn("说明") { row in Text(row.description).lineLimit(1) }.width(min: 120, ideal: 210, max: 280)
-                TableColumn("当前默认") { row in Text(row.appName).lineLimit(1) }.width(min: 110, ideal: 165, max: 220)
-                TableColumn("关系") { row in
+            Table(store.filteredRows.sorted(using: appSortOrder), selection: $store.selected, sortOrder: $appSortOrder) {
+                TableColumn("文件类型", value: \.id) { row in Text("." + row.id).monospaced() }.width(min: 80, ideal: 105, max: 140)
+                TableColumn("说明", value: \.description) { row in Text(row.description).lineLimit(1) }.width(min: 120, ideal: 210, max: 280)
+                TableColumn("当前默认", value: \.appName) { row in Text(row.appName).lineLimit(1) }.width(min: 110, ideal: 165, max: 220)
+                TableColumn("关系", value: \.category) { row in
                     let current = row.appID == app.id
                     let declared = app.supportedExtensions.contains(row.id)
                     Text(current && declared ? "默认 · 声明支持" : current ? "当前默认" : declared ? "声明支持" : "相关")
                         .foregroundStyle(current ? Color.accentColor : Color.secondary)
                 }.width(min: 100, ideal: 135, max: 180)
             }
+            .contextMenu(forSelectionType: String.self) { ids in
+                Button("更换默认应用…") { store.selected = ids; showPicker = true }.disabled(ids.isEmpty)
+                Button("交给 Openly 接管…") { store.prepare(Array(ids), target: RoutingRules.receiverID) }.disabled(ids.isEmpty)
+                Button("恢复修改前设置…") {
+                    let types = Set(store.rows.filter { ids.contains($0.id) }.map(\.typeID))
+                    store.prepareRestore(store.state.records.filter { types.contains($0.id) })
+                }.disabled(!store.state.records.contains { r in store.rows.contains { ids.contains($0.id) && $0.typeID == r.id } })
+            } primaryAction: { ids in store.selected = ids; showPicker = true }
             .overlay { if store.filteredRows.isEmpty && !store.loading { ContentUnavailableView("没有匹配的格式", systemImage: "doc.text.magnifyingglass", description: Text("调整范围或搜索条件")) } }
             HStack {
                 Text("显示 \(store.filteredRows.count) 种格式 · 已选 \(store.selected.count) 种").font(.caption).foregroundStyle(.secondary)
@@ -237,7 +245,7 @@ struct PlanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(store.restoring ? "预览恢复范围" : "预览更改范围").font(.title2)
-            Text("\(store.plan.count) 个文件类型或协议 · 同类型别名会一并生效").foregroundStyle(.secondary)
+            Text("\(store.plan.count) 个文件类型或协议 · 一次确认后批量写入并逐项核验").foregroundStyle(.secondary)
             List {
                 ForEach(store.plan) { change in
                     HStack {
@@ -262,7 +270,7 @@ struct PlanView: View {
             }
             HStack {
                 if store.busy { ProgressView().controlSize(.small); Text("已处理 \(store.results.count) 项"); Spacer(); Button("停止后续操作") { store.stop = true } }
-                else { Spacer(); Button("取消") { dismiss() }.keyboardShortcut(.cancelAction); Button("应用所选 \(store.planSelection.count) 项") { Task { await store.execute() } }.keyboardShortcut(.defaultAction).disabled(store.planSelection.isEmpty) }
+                else { Spacer(); Button("取消") { dismiss() }.keyboardShortcut(.cancelAction); Button(store.restoring ? "确认恢复所选 \(store.planSelection.count) 项" : "一次确认并应用 \(store.planSelection.count) 项") { Task { await store.execute() } }.keyboardShortcut(.defaultAction).disabled(store.planSelection.isEmpty) }
             }
         }.padding(24).frame(width: 680, height: 510).interactiveDismissDisabled(store.busy)
     }

@@ -23,6 +23,8 @@ struct AssociationRecord: Codable, Identifiable, Sendable {
     var previousAppID: String?
     var targetAppID: String
     var createdAt = Date()
+    var previousAppSortKey: String { previousAppID ?? "" }
+    var statusSortKey: String { targetAppID }
 }
 
 struct OperationResult: Identifiable, Sendable {
