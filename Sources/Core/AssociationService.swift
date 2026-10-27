@@ -35,12 +35,6 @@ enum AssociationService {
             try await NSWorkspace.shared.setDefaultApplication(at: app, toOpen: type)
         }
     }
-    static func writeLaunchServices(_ id: String, appID: String) throws {
-        guard appID == RoutingRules.batchReceiverID else { throw OpenlyError("批量注册目标无效") }
-        guard let type = UTType(id) else { throw OpenlyError("无法解析类型 (id)") }
-        let status = LSSetDefaultRoleHandlerForContentType(type.identifier as CFString, .all, appID as CFString)
-        guard status == noErr else { throw OpenlyError("Launch Services 写入失败（(status)）") }
-    }
     static func prepareBatchReceiver(for changes: [PlannedChange]) throws {
         let source = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/Openly Receiver.app")
         guard FileManager.default.fileExists(atPath: source.path) else { throw OpenlyError("未找到接收器模板，请先使用完整 Openly.app") }

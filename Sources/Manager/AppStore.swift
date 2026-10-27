@@ -120,12 +120,16 @@ final class AppStore {
         for change in changes {
             if stop { results.append(.init(id: change.id, label: change.label, status: .stopped, detail: "用户停止后续操作")); continue }
             let targetAppID = change.targetAppID == RoutingRules.receiverID && !change.id.hasPrefix("scheme:") ? RoutingRules.batchReceiverID : change.targetAppID
-            let before = AssociationService.current(change.id)
+            let observedBefore = AssociationService.current(change.id)
+            let registeredByBatch = !restoring && targetAppID == RoutingRules.batchReceiverID && RoutingRules.isReceiverID(observedBefore)
+            let before = registeredByBatch ? change.previousAppID : observedBefore
             guard before == change.previousAppID || (RoutingRules.isReceiverID(before) && RoutingRules.isReceiverID(change.targetAppID)) else {
                 results.append(.init(id: change.id, label: change.label, status: .failure, detail: "当前关联已改变，请重新预览")); continue
             }
             do {
-                if before == targetAppID || (RoutingRules.isReceiverID(before) && RoutingRules.isReceiverID(targetAppID)) {
+                if registeredByBatch {
+                    // Owner Receiver 的一次注册已经完成本批次全部 UTI 的接管。
+                } else if before == targetAppID || (RoutingRules.isReceiverID(before) && RoutingRules.isReceiverID(targetAppID)) {
                     if restoring { state.records.removeAll { $0.id == change.id }; try StateFiles.write(state) }
                     results.append(.init(id: change.id, label: change.label, status: .skipped, detail: "当前已是所选应用")); continue
                 }
@@ -139,15 +143,13 @@ final class AppStore {
                     }
                     try StateFiles.write(state)
                 }
-                if targetAppID == RoutingRules.batchReceiverID && !change.id.hasPrefix("scheme:") {
-                    try AssociationService.writeLaunchServices(change.id, appID: targetAppID)
-                } else {
+                if !registeredByBatch {
                     try await AssociationService.write(change.id, appID: targetAppID)
                 }
                 var verified = RoutingRules.isReceiverID(targetAppID) ? RoutingRules.isReceiverID(AssociationService.current(change.id)) : AssociationService.current(change.id) == targetAppID
                 for _ in 0..<4 where !verified {
                     try await Task.sleep(for: .milliseconds(150))
-                    verified = AssociationService.current(change.id) == change.targetAppID
+                    verified = RoutingRules.isReceiverID(targetAppID) ? RoutingRules.isReceiverID(AssociationService.current(change.id)) : AssociationService.current(change.id) == targetAppID
                 }
                 if verified && restoring { state.records.removeAll { $0.id == change.id }; try StateFiles.write(state) }
                 results.append(.init(id: change.id, label: change.label, status: verified ? .success : .pending, detail: AssociationService.name(AssociationService.current(change.id))))
