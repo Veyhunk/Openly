@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor @Observable
 final class RouterModel {
@@ -33,10 +34,21 @@ final class RouterModel {
     var onWillOpen: (() -> Void)?
     var onFailure: (() -> Void)?
     var bridgeIDs: [String: String] = [:]
+    var localState = LocalState()
     private var targetTask: Task<Void, Never>?
     private var generation = 0
     var selectedApp: AppInfo? { apps.first { $0.id == selectedAppID } }
-    var defaultOpenOption: RouteOption? { availableOptions.first { $0.mode == "default" } }
+    var systemDefaultApp: AppInfo? {
+        guard let url = urls.first else { return nil }
+        let key: String?
+        if url.isFileURL, let type = UTType(filenameExtension: url.pathExtension) { key = type.identifier }
+        else if let scheme = url.scheme { key = "scheme:\(scheme.lowercased())" }
+        else { key = nil }
+        guard let key else { return nil }
+        let current = AssociationService.current(key)
+        let fallback = localState.records.first { $0.id == key && RoutingRules.isReceiverID(current) }?.previousAppID
+        return apps.first { $0.id == (fallback ?? current) }
+    }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
     var candidates: [AppInfo] { apps.filter { (!onlyCompatible || supports($0)) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }.sorted { a,b in
@@ -58,7 +70,7 @@ final class RouterModel {
         else { queue.append(valid) }
     }
     func loadCache() {
-        do { let state = try StateFiles.read(); apps = state.apps; bridgeIDs = state.bridgeIDs; updateCompatibility() }
+        do { localState = try StateFiles.read(); apps = localState.apps; bridgeIDs = localState.bridgeIDs; updateCompatibility() }
         catch { self.error = error.localizedDescription }
         if apps.isEmpty {
             status = "首次使用，正在读取应用…"
@@ -75,6 +87,16 @@ final class RouterModel {
         urls = queue.removeFirst(); updateCompatibility(); return true
     }
     func cancelAll() { targetTask?.cancel(); queue = []; urls = [] }
+    func openUsingSystemDefault() async {
+        guard let app = systemDefaultApp, !busy, let appURL = AssociationService.appURL(app.id) else { return }
+        busy = true; error = nil; onWillOpen?()
+        defer { busy = false }
+        do {
+            let config = NSWorkspace.OpenConfiguration(); config.activates = true
+            _ = try await NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: config)
+            status = "已按默认方式交给 \(app.name) 打开"; onDismiss?()
+        } catch let openError { self.error = openError.localizedDescription; onFailure?() }
+    }
     func resetTarget() {
         targetTask?.cancel(); generation += 1; selectedAppID = nil; mode = "default"; profile = "Default"
         windows = []; browserSnapshots = [:]; targetErrors = [:]; error = nil; search = ""; optionSearch = ""; step = "apps"; onlyCompatible = true; allowUnsupported = false
