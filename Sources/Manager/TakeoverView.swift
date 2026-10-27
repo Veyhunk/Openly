@@ -24,7 +24,11 @@ struct TakeoverView: View {
             Text("打开时由你选择应用。关闭管理窗口后仍可按需接收打开请求。").foregroundStyle(.secondary)
             HStack {
                 TextField("搜索接管后缀", text: $search).textFieldStyle(.roundedBorder)
-                Picker("状态", selection: $stateFilter) { ForEach(["全部", "已接管", "未接管"], id: \.self) { Text($0) } }.frame(width: 150)
+                Picker("状态", selection: $stateFilter) {
+                    Text("全部").tag("全部")
+                    Text("已接管").tag("已接管")
+                    Text("未接管").tag("未接管")
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 225)
             }
             Table(records.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("后缀", value: \.id) { r in Text(r.extensions.map { "." + $0 }.joined(separator: ", ")) }
