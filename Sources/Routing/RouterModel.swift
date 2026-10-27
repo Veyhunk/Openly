@@ -49,6 +49,10 @@ final class RouterModel {
         let fallback = localState.records.first { $0.id == key && RoutingRules.isReceiverID(current) }?.previousAppID
         return apps.first { $0.id == (fallback ?? current) }
     }
+    func isOriginalDefault(_ option: RouteOption) -> Bool {
+        guard option.mode == "default", let app = selectedApp, systemDefaultApp?.id == app.id else { return false }
+        return !chromium || option.profile == profiles.first?.id
+    }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
     var candidates: [AppInfo] { apps.filter { (!onlyCompatible || supports($0)) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }.sorted { a,b in

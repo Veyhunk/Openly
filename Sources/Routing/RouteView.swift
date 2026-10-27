@@ -63,12 +63,20 @@ struct RouteView: View {
             ScrollView {
                 LazyVGrid(columns: appColumns, alignment: .center, spacing: 18) {
                     ForEach(model.candidates) { app in
+                        let isDefault = model.systemDefaultApp?.id == app.id
                         Button { model.selectApp(app.id) } label: {
                             VStack(spacing: 9) {
                                 AppIcon(path: app.path, size: 54)
                                 Text(app.name).font(.callout).multilineTextAlignment(.center).lineLimit(2).frame(height: 34)
                             }.frame(maxWidth: .infinity).padding(.vertical, 12).contentShape(RoundedRectangle(cornerRadius: 12))
-                        }.buttonStyle(AppTileStyle()).help(app.name).accessibilityLabel("使用 \(app.name)，选择打开方式")
+                        }
+                        .buttonStyle(AppTileStyle())
+                        .overlay(alignment: .topTrailing) {
+                            if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
+                        }
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
+                        .help(app.name)
+                        .accessibilityLabel("使用 \(app.name)\(isDefault ? "，原默认应用" : "")，选择打开方式")
                     }
                 }.padding(.horizontal, 22).padding(.bottom, 20)
                 if model.candidates.isEmpty {
@@ -92,13 +100,21 @@ struct RouteView: View {
                             Text(section).font(.headline)
                             LazyVGrid(columns: optionColumns, alignment: .leading, spacing: 12) {
                                 ForEach(model.availableOptions.filter { $0.section == section }) { option in
+                                    let isDefault = model.isOriginalDefault(option)
                                     Button { Task { await model.choose(option) } } label: {
                                         VStack(alignment: .leading, spacing: 10) {
                                             Image(systemName: option.symbol).font(.title3).foregroundStyle(.tint)
                                             Text(option.title).font(.headline).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
                                             Text(option.detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                                         }.frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading).padding(12)
-                                    }.buttonStyle(AppTileStyle()).disabled(model.busy).help(option.title + " — " + option.detail)
+                                    }
+                                    .buttonStyle(AppTileStyle())
+                                    .overlay(alignment: .topTrailing) {
+                                        if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
+                                    }
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
+                                    .disabled(model.busy)
+                                    .help(option.title + " — " + option.detail)
                                 }
                             }
                         }
