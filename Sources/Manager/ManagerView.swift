@@ -84,7 +84,7 @@ struct ManagerView: View {
                 TableColumn("文件类型", value: \.id) { row in Text("." + row.id).monospaced() }.width(min: 75, ideal: 110)
                 TableColumn("说明", value: \.description).width(min: 100, ideal: 200)
                 TableColumn("默认应用", value: \.appName) { row in
-                    HStack { if row.appID == RoutingRules.receiverID { Image(systemName: "arrow.triangle.branch") }; Text(row.appName) }
+                    HStack { if RoutingRules.isReceiverID(row.appID) { Image(systemName: "arrow.triangle.branch") }; Text(row.appName) }
                 }.width(min: 140, ideal: 220)
                 TableColumn("分类", value: \.category).width(min: 60, ideal: 90)
             }

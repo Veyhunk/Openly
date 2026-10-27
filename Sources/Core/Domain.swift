@@ -60,7 +60,9 @@ struct BackupConfig: Codable, Sendable {
 
 enum RoutingRules {
     static let receiverID = "com.openly.receiver"
+    static let batchReceiverID = "com.openly.receiver.batch"
     static let managerID = "com.openly.app"
+    static func isReceiverID(_ id: String?) -> Bool { id == receiverID || id == batchReceiverID }
     static func normalize(_ ext: String) -> String { ext.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() }
     static func typeID(_ ext: String) -> String? {
         let ext = normalize(ext)

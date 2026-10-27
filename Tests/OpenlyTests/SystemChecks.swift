@@ -52,7 +52,7 @@ import UniformTypeIdentifiers
         guard store.plan.count == 1, store.plan[0].id == typeID else { throw OpenlyError("测试类型预览不正确") }
         await store.execute()
         guard AssociationService.current(typeID) == RoutingRules.receiverID else { throw OpenlyError("接管核验失败：\(store.results)") }
-        guard let record = store.state.records.first(where: { $0.id == typeID }), record.previousAppID == appID else { throw OpenlyError("恢复记录不匹配：expected=\(appID), records=\(store.state.records), plan=\(store.plan), results=\(store.results)") }
+        guard let record = store.state.records.first(where: { $0.id == typeID }), record.previousAppID == appID, record.targetAppID == RoutingRules.batchReceiverID else { throw OpenlyError("批量接管记录不匹配：expected=\(appID), records=\(store.state.records), plan=\(store.plan), results=\(store.results)") }
         store.prepareRestore([record]); await store.execute()
         guard AssociationService.current(typeID) == appID, !store.state.records.contains(where: { $0.id == typeID }) else { throw OpenlyError("恢复核验失败") }
         print("PASS: isolated system UTI takeover, persisted recovery and restoration")

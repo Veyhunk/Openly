@@ -58,6 +58,6 @@ Release 构建；应用缓存已建立；每次接收器进程均重新启动。
 
 ## 批量确认调查
 
-当前可靠写入路径使用 NSWorkspace，系统可按文件类型再次确认。兼容的公开 Launch Services 写入接口在可选处理器测试应用中写入成功；对当前 `LSHandlerRank=None` 接收器，接口返回成功但有效默认保持原应用，因此保留逐项核验并继续使用可靠路径。改变接收器注册策略可减少确认，但涉及原本未指定默认应用的格式，等待用户确认该取舍后实施。
+批量接管使用临时的轻量 Receiver 注册副本：副本只声明本次所选 UTI，并以 `LSHandlerRank=Owner` 注册；随后通过 `LSSetDefaultRoleHandlerForContentType` 写入，避免对每个 UTI 调用会触发独立确认的 `NSWorkspace` 接口。批次完成后按类型重新读取并核验，副本保留在 Openly 的应用支持目录中供已接管类型继续唤起。
 
 管理界面已将接管提交收敛为一次批量确认入口；确认后按 UTType 顺序写入并逐项核验，失败项进入结果页，可单独重试。系统是否额外显示 Launch Services 确认由 macOS 当前策略决定。

@@ -12,8 +12,8 @@ struct TakeoverView: View {
     @NativeState private var extensionID = ""
     var records: [AssociationRecord] {
         store.state.records.filter { record in
-            guard record.targetAppID == RoutingRules.receiverID, !record.id.hasPrefix("scheme:") else { return false }
-            let claimed = AssociationService.current(record.id) == RoutingRules.receiverID
+            guard RoutingRules.isReceiverID(record.targetAppID), !record.id.hasPrefix("scheme:") else { return false }
+            let claimed = RoutingRules.isReceiverID(AssociationService.current(record.id))
             let matchesState = stateFilter == "全部" || (stateFilter == "已接管" && claimed) || (stateFilter == "未接管" && !claimed)
             return matchesState && (search.isEmpty || record.extensions.joined(separator: " ").localizedCaseInsensitiveContains(search) || record.id.localizedCaseInsensitiveContains(search))
         }
@@ -33,9 +33,9 @@ struct TakeoverView: View {
             Table(records.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("后缀", value: \.id) { r in Text(r.extensions.map { "." + $0 }.joined(separator: ", ")) }
                 TableColumn("接管前应用", value: \.previousAppSortKey) { r in Text(AssociationService.name(r.previousAppID)) }
-                TableColumn("当前状态", value: \.statusSortKey) { r in Text(AssociationService.current(r.id) == RoutingRules.receiverID ? "已接管" : "已被更改 / 未生效") }
+                TableColumn("当前状态", value: \.statusSortKey) { r in Text(RoutingRules.isReceiverID(AssociationService.current(r.id)) ? "已接管" : "已被更改 / 未生效") }
             }.frame(minHeight: 150)
-            HStack { Text("\(records.count) 个系统类型 · 已选 \(selection.count) 项").foregroundStyle(.secondary); Spacer(); Button("停止所选接管…") { store.prepareRestore(records.filter { selection.contains($0.id) }) }.disabled(selection.isEmpty); Button("停止全部接管…") { store.prepareRestore(store.state.records.filter { $0.targetAppID == RoutingRules.receiverID }) }.disabled(!store.state.records.contains { $0.targetAppID == RoutingRules.receiverID }) }
+            HStack { Text("\(records.count) 个系统类型 · 已选 \(selection.count) 项").foregroundStyle(.secondary); Spacer(); Button("停止所选接管…") { store.prepareRestore(records.filter { selection.contains($0.id) }) }.disabled(selection.isEmpty); Button("停止全部接管…") { store.prepareRestore(store.state.records.filter { RoutingRules.isReceiverID($0.targetAppID) }) }.disabled(!store.state.records.contains { RoutingRules.isReceiverID($0.targetAppID) }) }
             GroupBox("网页链接") {
                 HStack {
                     VStack(alignment: .leading) { ForEach(["http", "https"], id: \.self) { Text("\($0.uppercased())：\(AssociationService.name(AssociationService.current("scheme:" + $0)))") } }
@@ -106,7 +106,7 @@ struct TakeoverSelection: View {
                     List(candidates) { row in
                         Toggle(isOn: Binding(get: { selected.contains(row.id) }, set: { if $0 { selected.insert(row.id) } else { selected.remove(row.id) } })) {
                             HStack { Text("." + row.id).monospaced().frame(width: 85, alignment: .leading); Text(row.description); Spacer(); Text(row.appName).foregroundStyle(.secondary) }
-                        }.disabled(row.appID == RoutingRules.receiverID)
+                        }.disabled(RoutingRules.isReceiverID(row.appID))
                     }
                 }
             }

@@ -112,14 +112,20 @@ final class AppStore {
         busy = true; stop = false; results = []
         defer { busy = false }
         let changes = plan.filter { planSelection.contains($0.id) }
+        let takeoverChanges = changes.filter { $0.targetAppID == RoutingRules.receiverID && !$0.id.hasPrefix("scheme:") }
+        if !restoring && !takeoverChanges.isEmpty {
+            do { try AssociationService.prepareBatchReceiver(for: takeoverChanges) }
+            catch let batchError { self.error = batchError.localizedDescription; busy = false; return }
+        }
         for change in changes {
             if stop { results.append(.init(id: change.id, label: change.label, status: .stopped, detail: "用户停止后续操作")); continue }
+            let targetAppID = change.targetAppID == RoutingRules.receiverID && !change.id.hasPrefix("scheme:") ? RoutingRules.batchReceiverID : change.targetAppID
             let before = AssociationService.current(change.id)
-            guard before == change.previousAppID else {
+            guard before == change.previousAppID || (RoutingRules.isReceiverID(before) && RoutingRules.isReceiverID(change.targetAppID)) else {
                 results.append(.init(id: change.id, label: change.label, status: .failure, detail: "当前关联已改变，请重新预览")); continue
             }
             do {
-                if before == change.targetAppID {
+                if before == targetAppID || (RoutingRules.isReceiverID(before) && RoutingRules.isReceiverID(targetAppID)) {
                     if restoring { state.records.removeAll { $0.id == change.id }; try StateFiles.write(state) }
                     results.append(.init(id: change.id, label: change.label, status: .skipped, detail: "当前已是所选应用")); continue
                 }
@@ -127,14 +133,18 @@ final class AppStore {
                 if !restoring {
                     if !state.records.contains(where: { $0.id == change.id && $0.targetAppID == change.targetAppID }) {
                         let prior = state.records.first { $0.id == change.id }
-                        let recovery = before == RoutingRules.receiverID ? prior?.previousAppID : before
+                        let recovery = RoutingRules.isReceiverID(before) ? prior?.previousAppID : before
                         state.records.removeAll { $0.id == change.id }
-                        state.records.append(.init(id: change.id, extensions: change.extensions, previousAppID: recovery, targetAppID: change.targetAppID))
+                        state.records.append(.init(id: change.id, extensions: change.extensions, previousAppID: recovery, targetAppID: targetAppID))
                     }
                     try StateFiles.write(state)
                 }
-                try await AssociationService.write(change.id, appID: change.targetAppID)
-                var verified = AssociationService.current(change.id) == change.targetAppID
+                if targetAppID == RoutingRules.batchReceiverID && !change.id.hasPrefix("scheme:") {
+                    try AssociationService.writeLaunchServices(change.id, appID: targetAppID)
+                } else {
+                    try await AssociationService.write(change.id, appID: targetAppID)
+                }
+                var verified = RoutingRules.isReceiverID(targetAppID) ? RoutingRules.isReceiverID(AssociationService.current(change.id)) : AssociationService.current(change.id) == targetAppID
                 for _ in 0..<4 where !verified {
                     try await Task.sleep(for: .milliseconds(150))
                     verified = AssociationService.current(change.id) == change.targetAppID
@@ -156,9 +166,9 @@ final class AppStore {
         for row in rows where seen.insert(row.typeID).inserted {
             guard let id = row.appID else { continue }
             let exts = rows.filter { $0.typeID == row.typeID }.map(\.id)
-            entries.append(.init(uti: row.typeID, extensions: exts, bundleID: id, appName: row.appName, takeover: id == RoutingRules.receiverID))
+            entries.append(.init(uti: row.typeID, extensions: exts, bundleID: id, appName: row.appName, takeover: RoutingRules.isReceiverID(id)))
         }
-        for scheme in ["http", "https"] where AssociationService.current("scheme:\(scheme)") == RoutingRules.receiverID {
+        for scheme in ["http", "https"] where RoutingRules.isReceiverID(AssociationService.current("scheme:\(scheme)")) {
             entries.append(.init(extensions: [], bundleID: RoutingRules.receiverID, takeover: true, scheme: scheme))
         }
         do { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(BackupConfig(associations: entries)).write(to: url, options: .atomic); status = "已导出 \(url.lastPathComponent)" }
