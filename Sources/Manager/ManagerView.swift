@@ -9,7 +9,7 @@ struct ManagerView: View {
     @NativeFocus private var searchFocused: Bool
     @NativeState private var showInspector = false
     @NativeState private var sortOrder = [KeyPathComparator(\FileTypeRow.id)]
-    @NativeState private var appSortOrder = [KeyPathComparator(\FileTypeRow.id)]
+    @NativeState private var appSortOrder = [KeyPathComparator(\AppFormatRow.id)]
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $store.page) {
@@ -64,7 +64,7 @@ struct ManagerView: View {
     }
     func narrowSelection() { store.selected.formIntersection(Set(store.filteredRows.map(\.id))) }
     var typesView: some View {
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             HStack {
                 TextField("搜索扩展名、说明或应用", text: $store.search).textFieldStyle(.roundedBorder).focused($searchFocused)
                 Picker("分类", selection: $store.category) { ForEach(store.categories, id: \.self) { Text($0) } }.frame(width: 170)
@@ -170,16 +170,16 @@ struct ManagerView: View {
     }
 
     func appTypeTable(_ app: AppInfo) -> some View {
-        VStack(spacing: 0) {
-            Table(store.filteredRows.sorted(using: appSortOrder), selection: $store.selected, sortOrder: $appSortOrder) {
+        let displayRows = store.filteredRows.map { row in
+            AppFormatRow(row: row, app: app)
+        }
+        return VStack(spacing: 0) {
+            Table(displayRows.sorted(using: appSortOrder), selection: $store.selected, sortOrder: $appSortOrder) {
                 TableColumn("文件类型", value: \.id) { row in Text("." + row.id).monospaced() }.width(min: 80, ideal: 105, max: 140)
                 TableColumn("说明", value: \.description) { row in Text(row.description).lineLimit(1) }.width(min: 120, ideal: 210, max: 280)
                 TableColumn("当前默认", value: \.appName) { row in Text(row.appName).lineLimit(1) }.width(min: 110, ideal: 165, max: 220)
-                TableColumn("关系", value: \.category) { row in
-                    let current = row.appID == app.id
-                    let declared = app.supportedExtensions.contains(row.id)
-                    Text(current && declared ? "默认 · 声明支持" : current ? "当前默认" : declared ? "声明支持" : "相关")
-                        .foregroundStyle(current ? Color.accentColor : Color.secondary)
+                TableColumn("关系", value: \.relation) { row in
+                    Text(row.relation).foregroundStyle(row.isCurrent ? Color.accentColor : Color.secondary)
                 }.width(min: 100, ideal: 135, max: 180)
             }
             .contextMenu(forSelectionType: String.self) { ids in
@@ -199,6 +199,19 @@ struct ManagerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+}
+
+struct AppFormatRow: Identifiable {
+    let row: FileTypeRow
+    let app: AppInfo
+    var id: String { row.id }
+    var description: String { row.description }
+    var appName: String { row.appName }
+    var isCurrent: Bool { row.appID == app.id }
+    var relation: String {
+        let declared = app.supportedExtensions.contains(row.id)
+        return isCurrent && declared ? "默认 · 声明支持" : isCurrent ? "当前默认" : declared ? "声明支持" : "相关"
+    }
 }
 
 struct AppIcon: View {
