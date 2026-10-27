@@ -1,7 +1,15 @@
 import Foundation
 import AppKit
 
-struct BrowserProfile: Identifiable, Sendable { let id: String; let name: String }
+struct BrowserProfile: Identifiable, Sendable {
+    let id: String
+    let name: String
+    let account: String?
+    init(id: String, name: String, account: String? = nil) {
+        self.id = id; self.name = name; self.account = account
+    }
+    var label: String { account.map { "\(name) · \($0)" } ?? name }
+}
 struct BrowserWindow: Codable, Identifiable, Sendable {
     let id: Int
     let title: String
@@ -28,8 +36,14 @@ enum BrowserService {
     static func profiles(_ id: String) -> [BrowserProfile] {
         let url = dataRoot(id).appendingPathComponent("Local State")
         guard let data = try? Data(contentsOf: url), let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let profile = json["profile"] as? [String: Any], let cache = profile["info_cache"] as? [String: [String: Any]] else { return [.init(id: "Default", name: "默认个人资料")] }
-        return cache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.map { .init(id: $0, name: cache[$0]?["name"] as? String ?? $0) }
+              let profile = json["profile"] as? [String: Any], let cache = profile["info_cache"] as? [String: [String: Any]] else { return [.init(id: "Default", name: "默认个人资料", account: nil)] }
+        return cache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.map {
+            let info = cache[$0] ?? [:]
+            let name = info["name"] as? String ?? $0
+            let account = (info["user_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? (info["gaia_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return .init(id: $0, name: name, account: account)
+        }
     }
     static func arguments(profile: String, mode: String, urls: [URL], temporaryDirectory: URL? = nil) -> [String] {
         var args: [String] = []
@@ -46,8 +60,17 @@ enum BrowserService {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("Openly-" + UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700]); temporary = url
         }
-        let process = Process(); process.executableURL = executable
-        process.arguments = arguments(profile: profile, mode: mode, urls: urls, temporaryDirectory: temporary)
+        let args = arguments(profile: profile, mode: mode, urls: urls, temporaryDirectory: temporary)
+        let process = Process()
+        if temporary == nil {
+            // Chromium 会把直接启动请求转给已运行的主进程，导致 --profile-directory 被忽略。
+            // `open -n --args` 强制创建一个实例，让指定 Profile 真正参与启动。
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-n", app.path, "--args"] + args
+        } else {
+            process.executableURL = executable
+            process.arguments = args
+        }
         process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
         try process.run()
     }

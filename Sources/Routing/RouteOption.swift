@@ -19,7 +19,7 @@ extension RouterModel {
         var options: [RouteOption] = []
         if chromium {
             for p in profiles {
-                let section = "个人资料 · " + p.name
+                let section = "个人资料 · " + p.label
                 for (mode, title, detail, symbol) in [
                     ("default", "默认打开", "使用此个人资料", "arrow.up.forward.app"),
                     ("new", "新窗口", "在此个人资料中新建窗口", "macwindow.badge.plus"),
