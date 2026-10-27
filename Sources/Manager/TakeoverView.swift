@@ -83,12 +83,16 @@ struct TakeoverSelection: View {
     @NativeState private var selected = Set<String>()
     @NativeState private var onlySelected = false
     @NativeState private var commonOnly = false
+    @NativeState private var claimFilter = "未接管"
     var candidates: [FileTypeRow] {
         let app = store.apps.first { $0.id == appID }
         return store.rows.filter { row in
             if onlySelected { return selected.contains(row.id) }
             guard search.isEmpty || row.id.localizedCaseInsensitiveContains(RoutingRules.normalize(search)) || row.description.localizedCaseInsensitiveContains(search) else { return false }
             if commonOnly && !row.isCommon { return false }
+            let claimed = RoutingRules.isReceiverID(row.appID)
+            if claimFilter == "已接管" && !claimed { return false }
+            if claimFilter == "未接管" && claimed { return false }
             if mode == "按类型" { return category == "全部" || row.category == category }
             guard let app else { return false }
             let declared = app.supportedExtensions.contains(row.id), current = row.appID == app.id
@@ -98,7 +102,12 @@ struct TakeoverSelection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("添加接管后缀").font(.title2)
-            HStack { Picker("来源", selection: $mode) { Text("按类型").tag("按类型"); Text("按应用").tag("按应用") }.pickerStyle(.segmented); TextField("搜索后缀或说明", text: $search).textFieldStyle(.roundedBorder); Picker("常用", selection: $commonOnly) { Text("全部").tag(false); Text("常用").tag(true) }.pickerStyle(.segmented).frame(width: 120) }
+            HStack {
+                Picker("来源", selection: $mode) { Text("按类型").tag("按类型"); Text("按应用").tag("按应用") }.pickerStyle(.segmented)
+                Picker("接管状态", selection: $claimFilter) { Text("全部").tag("全部"); Text("已接管").tag("已接管"); Text("未接管").tag("未接管") }.pickerStyle(.segmented).frame(width: 220)
+                TextField("搜索后缀或说明", text: $search).textFieldStyle(.roundedBorder)
+                Picker("常用", selection: $commonOnly) { Text("全部").tag(false); Text("常用").tag(true) }.pickerStyle(.segmented).frame(width: 120)
+            }
             HSplitView {
                 if mode == "按类型" { List(store.categories, id: \.self, selection: $category) { Text($0) }.frame(width: 160) }
                 else { List(store.apps, selection: $appID) { Text($0.name).tag($0.id) }.frame(width: 180) }
