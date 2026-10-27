@@ -21,6 +21,10 @@ enum OpenlyPreferences {
         get { (defaults.object(forKey: "Openly.lightweightDelaySeconds") as? NSNumber)?.doubleValue ?? 0 }
         set { defaults.set(max(0, newValue), forKey: "Openly.lightweightDelaySeconds"); notify() }
     }
+    static var advancedRoutingMode: Bool {
+        get { value("Openly.advancedRoutingMode", default: false) }
+        set { defaults.set(newValue, forKey: "Openly.advancedRoutingMode"); notify() }
+    }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         guard defaults.object(forKey: key) != nil else { return fallback }

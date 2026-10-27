@@ -49,6 +49,7 @@ final class RouterModel {
         let fallback = localState.records.first { $0.id == key && RoutingRules.isReceiverID(current) }?.previousAppID
         return apps.first { $0.id == (fallback ?? current) }
     }
+    var advancedMode: Bool { OpenlyPreferences.advancedRoutingMode }
     func isOriginalDefault(_ option: RouteOption) -> Bool {
         guard option.mode == "default", let app = selectedApp, systemDefaultApp?.id == app.id else { return false }
         return !chromium || option.profile == profiles.first?.id
@@ -115,8 +116,9 @@ final class RouterModel {
     }
     func refreshWindows() { windows = selectedAppID.map(WindowAccess.windows) ?? []; windowID = nil; genericNewWindow = !chromium && !vscode && selectedAppID.flatMap { WindowAccess.newWindowAction(appID: $0) } != nil }
     func selectApp(_ id: String) {
-        selectedAppID = id; appChanged(); optionSearch = ""; step = "options"
+        selectedAppID = id; appChanged(); optionSearch = ""; step = advancedMode ? "advanced" : "options"
         if chromium, bridgeIDs[id] != nil { loadBrowserTargets() }
+        if advancedMode { return }
         let options = availableOptions
         if OpenlyPreferences.autoOpenSingleOption, options.count == 1, let only = options.first {
             Task { await choose(only) }

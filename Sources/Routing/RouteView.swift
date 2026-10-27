@@ -11,7 +11,8 @@ struct RouteView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if model.step == "apps" { appGrid } else { optionGrid }
+            if model.advancedMode { advancedLayout }
+            else if model.step == "apps" { appGrid } else { optionGrid }
             Divider()
             footer
         }
@@ -23,15 +24,15 @@ struct RouteView: View {
     var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                if model.step == "options" {
-                    Button { model.backToApps() } label: { Label("返回应用", systemImage: "chevron.left") }.buttonStyle(.plain).disabled(model.busy)
+                if model.step == "options" || model.step == "advanced" {
+                    if model.step == "options" { Button { model.backToApps() } label: { Label("返回应用", systemImage: "chevron.left") }.buttonStyle(.plain).disabled(model.busy) }
                 }
                 Text(model.urls.count == 1 ? (model.urls[0].isFileURL ? model.urls[0].lastPathComponent : model.urls[0].host ?? model.urls[0].absoluteString) : "\(model.urls.count) 个项目")
                     .font(.title3).lineLimit(1)
                 Spacer()
                 if model.step == "apps", let app = model.systemDefaultApp {
                     defaultAppButton(app)
-                } else if model.step == "options", let app = model.selectedApp {
+                } else if (model.step == "options" || model.step == "advanced"), let app = model.selectedApp {
                     HStack(spacing: 7) { AppIcon(path: app.path, size: 26); Text(app.name).font(.callout).lineLimit(1) }
                 }
             }
@@ -82,19 +83,46 @@ struct RouteView: View {
             }
         }
     }
+    var advancedLayout: some View {
+        HSplitView {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.candidates) { app in
+                        let isDefault = model.systemDefaultApp?.id == app.id
+                        Button { model.selectApp(app.id) } label: {
+                            HStack(spacing: 9) {
+                                AppIcon(path: app.path, size: 34)
+                                Text(app.name).font(.callout).lineLimit(1)
+                                Spacer()
+                            }.padding(.horizontal, 10).padding(.vertical, 7)
+                        }.buttonStyle(.plain)
+                            .background(isDefault ? Color.accentColor.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
+                    }
+                }.padding(12)
+            }.frame(minWidth: 190, idealWidth: 220, maxWidth: 250)
+            optionGrid
+        }
+        .frame(minWidth: 760, minHeight: 360)
+    }
     var optionGrid: some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
                 Button { model.refreshWindows(); if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] != nil { model.loadBrowserTargets() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.buttonStyle(.plain).disabled(model.busy)
             }.padding(.horizontal, 20).padding(.vertical, 8)
-            ScrollView {
+            ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 20) {
+                    if model.selectedApp == nil {
+                        ContentUnavailableView("选择一个应用", systemImage: "square.grid.2x2", description: Text("左侧选择应用后显示可行的打开方式。"))
+                            .frame(minWidth: 420, minHeight: 180)
+                    }
                     if let app = model.selectedApp, !model.supports(app) { Text("此应用未声明支持全部所选内容，选择下方选项后尝试打开。").font(.callout).foregroundStyle(.secondary) }
                     ForEach(model.optionSections, id: \.self) { section in
                         VStack(alignment: .leading, spacing: 10) {
                             Text(section).font(.headline)
-                            LazyVGrid(columns: optionColumns, alignment: .leading, spacing: 12) {
+                            let columns = model.availableOptions.count == 1 ? [GridItem(.flexible(minimum: 420))] : optionColumns
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                                 ForEach(model.availableOptions.filter { $0.section == section }) { option in
                                     let isDefault = model.isOriginalDefault(option)
                                     Button { Task { await model.choose(option) } } label: {

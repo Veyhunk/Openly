@@ -5,6 +5,7 @@ struct PreferencesView: View {
     @NativeState private var residentBackground = OpenlyPreferences.residentBackground
     @NativeState private var autoOpenSingleOption = OpenlyPreferences.autoOpenSingleOption
     @NativeState private var lightweightDelaySeconds = OpenlyPreferences.lightweightDelaySeconds
+    @NativeState private var advancedRoutingMode = OpenlyPreferences.advancedRoutingMode
 
     var body: some View {
         Form {
@@ -35,6 +36,10 @@ struct PreferencesView: View {
                 Toggle("只有一种打开方式时直接打开", isOn: $autoOpenSingleOption)
                     .onChange(of: autoOpenSingleOption) { OpenlyPreferences.autoOpenSingleOption = autoOpenSingleOption }
                 Text("存在多个应用窗口、浏览器 Profile、标签组或无痕选项时，仍会显示选择窗口。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("启用高级打开方式页面", isOn: $advancedRoutingMode)
+                    .onChange(of: advancedRoutingMode) { OpenlyPreferences.advancedRoutingMode = advancedRoutingMode }
+                Text("将应用列表与打开方式合并到同一页，适合经常在多个应用和窗口之间切换。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("菜单栏图标") {
