@@ -107,10 +107,6 @@ struct RouteView: View {
     }
     var optionGrid: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button { model.refreshWindows(); if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] != nil { model.loadBrowserTargets() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.buttonStyle(.plain).disabled(model.busy)
-            }.padding(.horizontal, 20).padding(.vertical, 8)
             ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 20) {
                     if model.selectedApp == nil {
