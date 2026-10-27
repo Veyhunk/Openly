@@ -117,6 +117,10 @@ final class RouterModel {
     func selectApp(_ id: String) {
         selectedAppID = id; appChanged(); optionSearch = ""; step = "options"
         if chromium, bridgeIDs[id] != nil { loadBrowserTargets() }
+        let options = availableOptions
+        if options.count == 1, let only = options.first {
+            Task { await choose(only) }
+        }
     }
     func backToApps() {
         targetTask?.cancel(); generation += 1; loadingTargets = false; step = "apps"; error = nil
