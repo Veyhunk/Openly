@@ -19,12 +19,14 @@ struct ManagerView: View {
                     Label("打开接管", systemImage: "arrow.triangle.branch").tag("打开接管")
                 }
                 Section("工具") { Label("检查文件", systemImage: "doc.text.magnifyingglass").tag("检查文件") }
+                Section("设置") { Label("偏好设置", systemImage: "gearshape").tag("偏好设置") }
             }.navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
                 .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(spacing: 0) {
                 if store.page == "打开接管" { TakeoverView(store: store) }
                 else if store.page == "检查文件" { FileCheckView() }
+                else if store.page == "偏好设置" { PreferencesView() }
                 else if store.page == "应用" { appsView }
                 else { typesView }
                 Divider()
