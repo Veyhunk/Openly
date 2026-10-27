@@ -17,9 +17,12 @@ struct OpenlyMain {
     var store: AppStore?
     var routeModels: [UUID: RouterModel] = [:]
     var routeWindows: [UUID: NSWindow] = [:]
+    var statusItem: NSStatusItem?
     var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID || Bundle.main.object(forInfoDictionaryKey: "OpenlyReceiver") as? Bool == true }
+    var lightModeEnabled: Bool { UserDefaults.standard.bool(forKey: "Openly.lightMode") }
+    var showsMenuBarIcon: Bool { UserDefaults.standard.object(forKey: "Openly.menuBarIcon") as? Bool ?? true }
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(isReceiver ? .accessory : .regular)
+        NSApp.setActivationPolicy(isReceiver || lightModeEnabled ? .accessory : .regular)
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURL(_:reply:)), forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
     }
     @objc func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
@@ -28,6 +31,7 @@ struct OpenlyMain {
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
+        configureStatusItem()
         if !isReceiver { showManager() }
         else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.routeModels.isEmpty else { return }
@@ -60,10 +64,28 @@ struct OpenlyMain {
     }
     func finishRequest(_ id: UUID) { routeWindows[id]?.close(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && routeModels.isEmpty { NSApp.terminate(nil) } }
     func showManager() {
+        if !isReceiver { NSApp.setActivationPolicy(.regular) }
         if managerWindow == nil {
             let store = AppStore(); self.store = store; let window = makeWindow(title: "Openly", size: NSSize(width: 1120, height: 760)); window.minSize = NSSize(width: 880, height: 600); window.contentView = NSHostingView(rootView: ManagerView(store: store)); window.delegate = self; managerWindow = window
         }
         managerWindow?.makeKeyAndOrderFront(nil); NSApp.activate()
+    }
+    func configureStatusItem() {
+        guard !isReceiver else { return }
+        if lightModeEnabled && showsMenuBarIcon {
+            if statusItem == nil { statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
+            statusItem?.button?.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Openly")
+            let menu = NSMenu()
+            menu.addItem(withTitle: "打开 Openly", action: #selector(openFromStatusItem), keyEquivalent: "").target = self
+            menu.addItem(.separator())
+            let light = menu.addItem(withTitle: "轻量模式", action: #selector(toggleLightMode), keyEquivalent: ""); light.state = .on; light.target = self
+            let icon = menu.addItem(withTitle: "显示菜单栏图标", action: #selector(toggleMenuBarIcon), keyEquivalent: ""); icon.state = showsMenuBarIcon ? .on : .off; icon.target = self
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
+            statusItem?.menu = menu
+        } else {
+            if let statusItem { NSStatusBar.system.removeStatusItem(statusItem); self.statusItem = nil }
+        }
     }
     func makeWindow(title: String, size: NSSize) -> NSWindow { let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false); w.title = title; w.isReleasedWhenClosed = false; w.center(); return w }
     func routeID(for window: NSWindow) -> UUID? { routeWindows.first { $0.value === window }?.key }
@@ -76,19 +98,32 @@ struct OpenlyMain {
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         if let id = routeID(for: window) { routeModels[id]?.cancelAll(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && routeModels.isEmpty { NSApp.terminate(nil) } }
-        if window === managerWindow { managerWindow = nil; store = nil }
+        if window === managerWindow {
+            managerWindow = nil; store = nil
+            if lightModeEnabled { NSApp.setActivationPolicy(.accessory); configureStatusItem() }
+        }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if routeModels.values.contains(where: { $0.busy }) || store?.busy == true { store?.stop = true; let alert = NSAlert(); alert.messageText = "正在完成当前操作"; alert.informativeText = "当前打开或关联修改完成后才能退出。"; alert.runModal(); return .terminateCancel }
         return .terminateNow
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { isReceiver || !lightModeEnabled }
     func installMenus() {
         let main = NSMenu(); let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu; main.addItem(appItem); appMenu.addItem(withTitle: "关于 Openly", action: #selector(about), keyEquivalent: "").target = self; appMenu.addItem(.separator()); appMenu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let file = NSMenu(title: "文件"); let item = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""); item.submenu = file; main.addItem(item); file.addItem(withTitle: "导出配置…", action: #selector(exportConfig), keyEquivalent: "S").target = self; file.addItem(withTitle: "导入配置…", action: #selector(importConfig), keyEquivalent: "O").target = self
         let edit = NSMenu(title: "编辑"); let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""); editItem.submenu = edit; main.addItem(editItem); for (title, action, key) in [("撤销", "undo:", "z"), ("剪切", "cut:", "x"), ("复制", "copy:", "c"), ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] { edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key) }
         let view = NSMenu(title: "视图"); let vi = NSMenuItem(title: "视图", action: nil, keyEquivalent: ""); vi.submenu = view; main.addItem(vi); view.addItem(withTitle: "刷新", action: #selector(refresh), keyEquivalent: "r").target = self; NSApp.mainMenu = main
+        let light = view.addItem(withTitle: "轻量模式", action: #selector(toggleLightMode), keyEquivalent: ""); light.state = lightModeEnabled ? .on : .off; light.target = self
+        let icon = view.addItem(withTitle: "显示菜单栏图标", action: #selector(toggleMenuBarIcon), keyEquivalent: ""); icon.state = showsMenuBarIcon ? .on : .off; icon.target = self
     }
+    @objc func openFromStatusItem() { showManager() }
+    @objc func toggleLightMode() {
+        UserDefaults.standard.set(!lightModeEnabled, forKey: "Openly.lightMode")
+        if lightModeEnabled { NSApp.setActivationPolicy(.accessory) } else { NSApp.setActivationPolicy(.regular) }
+        configureStatusItem()
+        if !lightModeEnabled && managerWindow == nil { NSApp.terminate(nil) }
+    }
+    @objc func toggleMenuBarIcon() { UserDefaults.standard.set(!showsMenuBarIcon, forKey: "Openly.menuBarIcon"); configureStatusItem() }
     @objc func refresh() { Task { await store?.refresh() } }
     @objc func exportConfig() { store?.exportConfig() }
     @objc func importConfig() { store?.importConfig() }
