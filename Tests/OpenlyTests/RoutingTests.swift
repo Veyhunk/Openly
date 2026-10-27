@@ -62,6 +62,9 @@ import Foundation
         XCTAssertEqual(model.candidates.map(\.id), ["supported"])
         model.onlyCompatible = false
         XCTAssertEqual(model.candidates.count, 2)
+        let advancedMode = OpenlyPreferences.advancedRoutingMode
+        OpenlyPreferences.advancedRoutingMode = false
+        defer { OpenlyPreferences.advancedRoutingMode = advancedMode }
         model.selectApp("supported")
         XCTAssertEqual(model.step, "options")
         model.backToApps()

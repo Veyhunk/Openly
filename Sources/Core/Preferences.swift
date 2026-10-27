@@ -3,7 +3,14 @@ import Foundation
 @MainActor
 enum OpenlyPreferences {
     static let didChange = Notification.Name("Openly.preferencesDidChange")
-    private static let defaults = UserDefaults.standard
+    private static let defaults: UserDefaults = {
+        let shared = UserDefaults(suiteName: "com.openly.app") ?? UserDefaults.standard
+        let standard = UserDefaults.standard
+        for key in ["Openly.dockIconVisible", "Openly.residentBackground", "Openly.autoOpenSingleOption", "Openly.lightweightDelaySeconds", "Openly.advancedRoutingMode"] where shared.object(forKey: key) == nil {
+            if let value = standard.object(forKey: key) { shared.set(value, forKey: key) }
+        }
+        return shared
+    }()
 
     static var dockIconVisible: Bool {
         get { value("Openly.dockIconVisible", default: true) }
