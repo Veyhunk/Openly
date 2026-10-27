@@ -130,7 +130,17 @@ struct OpenlyMain {
     @objc func preferencesChanged() { applyActivationPolicy(); configureStatusItem() }
     func applyActivationPolicy() {
         guard !isReceiver else { NSApp.setActivationPolicy(.accessory); return }
-        NSApp.setActivationPolicy(OpenlyPreferences.dockIconVisible && managerWindow != nil ? .regular : .accessory)
+        let window = managerWindow
+        let shouldRestoreFocus = window?.isVisible == true && window?.isKeyWindow == true
+        let policy: NSApplication.ActivationPolicy = OpenlyPreferences.dockIconVisible && managerWindow != nil ? .regular : .accessory
+        NSApp.setActivationPolicy(policy)
+        if shouldRestoreFocus {
+            DispatchQueue.main.async { [weak window] in
+                guard let window, window.isVisible else { return }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
     }
     func scheduleLightweightTransition() {
         lightweightWorkItem?.cancel(); lightweightWorkItem = nil
