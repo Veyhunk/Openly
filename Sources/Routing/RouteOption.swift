@@ -25,7 +25,8 @@ extension RouterModel {
                     ("new", "新窗口", "在此个人资料中新建窗口", "macwindow.badge.plus"),
                     ("incognito", "无痕窗口", "独立的无痕登录状态", "eye.slash")
                 ] {
-                    options.append(.init(id: p.id + ":" + mode, section: section, title: title, detail: detail, symbol: symbol, mode: mode, profile: p.id))
+                    let optionDetail = mode == "default" ? p.label : detail
+                    options.append(.init(id: p.id + ":" + mode, section: section, title: title, detail: optionDetail, symbol: symbol, mode: mode, profile: p.id))
                 }
                 if let snapshot = browserSnapshots[p.id] {
                     for window in snapshot.windows {

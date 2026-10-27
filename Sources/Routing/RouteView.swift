@@ -69,6 +69,23 @@ struct RouteView: View {
             HStack(spacing: 12) {
                 TextField("搜索打开方式、个人资料或窗口", text: $model.optionSearch).textFieldStyle(.roundedBorder).focused($searchFocused)
                 Button { model.refreshWindows(); if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] != nil { model.loadBrowserTargets() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.disabled(model.busy)
+                Spacer(minLength: 12)
+                if let option = model.defaultOpenOption, let app = model.selectedApp {
+                    Button { Task { await model.choose(option) } } label: {
+                        HStack(spacing: 10) {
+                            AppIcon(path: app.path, size: 30)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("按默认方式打开").font(.headline)
+                                Text(app.name).font(.callout)
+                                if model.chromium && !option.detail.isEmpty { Text(option.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                            }
+                        }
+                        .frame(minWidth: 210, alignment: .leading)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.busy)
+                    .help("使用 \(app.name) 的默认打开方式")
+                }
             }.padding(.horizontal, 20).padding(.vertical, 14)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

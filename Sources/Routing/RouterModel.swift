@@ -36,6 +36,7 @@ final class RouterModel {
     private var targetTask: Task<Void, Never>?
     private var generation = 0
     var selectedApp: AppInfo? { apps.first { $0.id == selectedAppID } }
+    var defaultOpenOption: RouteOption? { availableOptions.first { $0.mode == "default" } }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
     var candidates: [AppInfo] { apps.filter { (!onlyCompatible || supports($0)) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }.sorted { a,b in
