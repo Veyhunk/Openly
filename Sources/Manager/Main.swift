@@ -34,7 +34,7 @@ struct OpenlyMain {
         configureStatusItem()
         if !isReceiver { showManager() }
         else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            guard let self, self.routeModels.isEmpty else { return }
+            guard let self, !self.lightModeEnabled, self.routeModels.isEmpty else { return }
             NSApp.terminate(nil)
         } }
     }
@@ -62,7 +62,7 @@ struct OpenlyMain {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak window] in guard let window, window.isVisible, !window.isKeyWindow, !router.busy else { return }; window.level = .floating; window.orderFrontRegardless() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak window] in if let window { PerformanceProbe.recordFocus(window) } }
     }
-    func finishRequest(_ id: UUID) { routeWindows[id]?.close(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && routeModels.isEmpty { NSApp.terminate(nil) } }
+    func finishRequest(_ id: UUID) { routeWindows[id]?.close(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && !lightModeEnabled && routeModels.isEmpty { NSApp.terminate(nil) } }
     func showManager() {
         if !isReceiver { NSApp.setActivationPolicy(.regular) }
         if managerWindow == nil {
@@ -97,7 +97,7 @@ struct OpenlyMain {
     }
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        if let id = routeID(for: window) { routeModels[id]?.cancelAll(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && routeModels.isEmpty { NSApp.terminate(nil) } }
+        if let id = routeID(for: window) { routeModels[id]?.cancelAll(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && !lightModeEnabled && routeModels.isEmpty { NSApp.terminate(nil) } }
         if window === managerWindow {
             managerWindow = nil; store = nil
             if lightModeEnabled { NSApp.setActivationPolicy(.accessory); configureStatusItem() }
@@ -107,7 +107,7 @@ struct OpenlyMain {
         if routeModels.values.contains(where: { $0.busy }) || store?.busy == true { store?.stop = true; let alert = NSAlert(); alert.messageText = "正在完成当前操作"; alert.informativeText = "当前打开或关联修改完成后才能退出。"; alert.runModal(); return .terminateCancel }
         return .terminateNow
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { isReceiver || !lightModeEnabled }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !lightModeEnabled }
     func installMenus() {
         let main = NSMenu(); let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu; main.addItem(appItem); appMenu.addItem(withTitle: "关于 Openly", action: #selector(about), keyEquivalent: "").target = self; appMenu.addItem(.separator()); appMenu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let file = NSMenu(title: "文件"); let item = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""); item.submenu = file; main.addItem(item); file.addItem(withTitle: "导出配置…", action: #selector(exportConfig), keyEquivalent: "S").target = self; file.addItem(withTitle: "导入配置…", action: #selector(importConfig), keyEquivalent: "O").target = self
