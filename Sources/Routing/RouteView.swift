@@ -4,8 +4,8 @@ import AppKit
 struct RouteView: View {
     @Bindable var model: RouterModel
     @NativeFocus private var searchFocused: Bool
-    private let appColumns = [GridItem(.adaptive(minimum: 112, maximum: 150), spacing: 18)]
-    private let optionColumns = [GridItem(.adaptive(minimum: 210, maximum: 320), spacing: 12)]
+    private let appColumns = Array(repeating: GridItem(.flexible(minimum: 100, maximum: 150), spacing: 12), count: 5)
+    private let optionColumns = [GridItem(.adaptive(minimum: 220, maximum: 340), spacing: 10)]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,50 +15,46 @@ struct RouteView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 620, minHeight: 420)
+        .frame(minWidth: 760, minHeight: 420)
         .onAppear { searchFocused = true; PerformanceProbe.visible() }
         .onChange(of: model.focusRequest) { searchFocused = true }
         .onChange(of: model.step) { searchFocused = true }
     }
     var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 if model.step == "options" {
-                    Button { model.backToApps() } label: { Label("应用", systemImage: "chevron.left") }.disabled(model.busy)
-                    if let app = model.selectedApp { AppIcon(path: app.path, size: 28); Text(app.name).font(.title2) }
-                } else {
-                    Text("选择打开应用").font(.title2)
-                    Spacer()
-                    if let app = model.systemDefaultApp {
-                        Button { Task { await model.openUsingSystemDefault() } } label: {
-                            HStack(spacing: 9) {
-                                AppIcon(path: app.path, size: 30)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("按默认方式打开").font(.headline)
-                                    Text(app.name).font(.callout)
-                                }
-                            }.frame(minWidth: 220, alignment: .leading)
-                        }.buttonStyle(.borderedProminent).disabled(model.busy).help("使用系统默认应用 \(app.name) 打开")
-                    }
+                    Button { model.backToApps() } label: { Label("返回应用", systemImage: "chevron.left") }.buttonStyle(.plain).disabled(model.busy)
                 }
+                Text(model.urls.count == 1 ? (model.urls[0].isFileURL ? model.urls[0].lastPathComponent : model.urls[0].host ?? model.urls[0].absoluteString) : "\(model.urls.count) 个项目")
+                    .font(.title3).lineLimit(1)
                 Spacer()
-                Text(model.step == "apps" ? "1 / 2" : "2 / 2").font(.callout).foregroundStyle(.secondary)
+                if model.step == "apps", let app = model.systemDefaultApp {
+                    defaultAppButton(app)
+                } else if model.step == "options", let app = model.selectedApp {
+                    HStack(spacing: 7) { AppIcon(path: app.path, size: 26); Text(app.name).font(.callout).lineLimit(1) }
+                }
             }
-            HStack {
-                Text(model.urls.count == 1 ? (model.urls[0].isFileURL ? model.urls[0].lastPathComponent : model.urls[0].host ?? model.urls[0].absoluteString) : "\(model.urls.count) 个项目").lineLimit(1).foregroundStyle(.secondary)
-                Spacer()
-                if model.step == "options" { Text("点击选项即可打开").font(.callout).foregroundStyle(.secondary) }
-            }
-            DisclosureGroup("查看完整路径 / 链接") {
-                ScrollView { Text(model.urls.map(\.absoluteString).joined(separator: "\n")).font(.caption).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 64)
-            }.font(.caption)
+            Text(model.urls.map(\.absoluteString).joined(separator: "\n"))
+                .font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         }.padding(20)
+    }
+    func defaultAppButton(_ app: AppInfo) -> some View {
+        Button { Task { await model.openUsingSystemDefault() } } label: {
+            HStack(spacing: 8) {
+                AppIcon(path: app.path, size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("按默认方式打开").font(.headline)
+                    Text(app.name).font(.caption)
+                }
+            }.frame(minWidth: 190, alignment: .leading)
+        }.buttonStyle(.borderedProminent).disabled(model.busy).help("使用系统默认应用 \(app.name) 打开")
     }
     var appGrid: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
                 TextField("搜索应用", text: $model.search).textFieldStyle(.roundedBorder).focused($searchFocused)
-                Picker("显示", selection: $model.onlyCompatible) { Text("支持当前格式").tag(true); Text("全部应用").tag(false) }.pickerStyle(.segmented).frame(width: 230)
+                Picker("显示", selection: $model.onlyCompatible) { Text("推荐").tag(true); Text("全部").tag(false) }.pickerStyle(.segmented).labelsHidden().frame(width: 150)
             }.padding(.horizontal, 20).padding(.vertical, 14)
             ScrollView {
                 LazyVGrid(columns: appColumns, alignment: .center, spacing: 18) {
@@ -68,13 +64,13 @@ struct RouteView: View {
                             VStack(spacing: 9) {
                                 AppIcon(path: app.path, size: 54)
                                 Text(app.name).font(.callout).multilineTextAlignment(.center).lineLimit(2).frame(height: 34)
-                            }.frame(maxWidth: .infinity).padding(.vertical, 12).contentShape(RoundedRectangle(cornerRadius: 12))
+                            }.frame(maxWidth: .infinity).padding(.vertical, 8).contentShape(Rectangle())
                         }
-                        .buttonStyle(AppTileStyle())
+                        .buttonStyle(.plain)
                         .overlay(alignment: .topTrailing) {
                             if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
                         }
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
                         .help(app.name)
                         .accessibilityLabel("使用 \(app.name)\(isDefault ? "，原默认应用" : "")，选择打开方式")
                     }
@@ -88,10 +84,10 @@ struct RouteView: View {
     }
     var optionGrid: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                TextField("搜索打开方式、个人资料或窗口", text: $model.optionSearch).textFieldStyle(.roundedBorder).focused($searchFocused)
-                Button { model.refreshWindows(); if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] != nil { model.loadBrowserTargets() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.disabled(model.busy)
-            }.padding(.horizontal, 20).padding(.vertical, 14)
+            HStack {
+                Spacer()
+                Button { model.refreshWindows(); if model.chromium && model.bridgeIDs[model.selectedAppID ?? ""] != nil { model.loadBrowserTargets() } } label: { Label("刷新", systemImage: "arrow.clockwise") }.buttonStyle(.plain).disabled(model.busy)
+            }.padding(.horizontal, 20).padding(.vertical, 8)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if let app = model.selectedApp, !model.supports(app) { Text("此应用未声明支持全部所选内容，选择下方选项后尝试打开。").font(.callout).foregroundStyle(.secondary) }
@@ -103,16 +99,16 @@ struct RouteView: View {
                                     let isDefault = model.isOriginalDefault(option)
                                     Button { Task { await model.choose(option) } } label: {
                                         VStack(alignment: .leading, spacing: 10) {
-                                            Image(systemName: option.symbol).font(.title3).foregroundStyle(.tint)
                                             Text(option.title).font(.headline).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
                                             Text(option.detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                        }.frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading).padding(12)
+                                        }.frame(maxWidth: .infinity, minHeight: 52, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 9)
                                     }
-                                    .buttonStyle(AppTileStyle())
+                                    .buttonStyle(.plain)
+                                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
                                     .overlay(alignment: .topTrailing) {
                                         if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
                                     }
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(isDefault ? Color.accentColor : .clear, lineWidth: 2))
+                                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(isDefault ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isDefault ? 2 : 1))
                                     .disabled(model.busy)
                                     .help(option.title + " — " + option.detail)
                                 }
