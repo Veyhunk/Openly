@@ -15,6 +15,7 @@ struct FileTypeRow: Identifiable, Sendable {
     var appID: String?
     var appName: String
     var isSystem: Bool
+    var isCommon: Bool { ExtensionUsage.isCommon(id) }
 }
 
 struct AssociationRecord: Codable, Identifiable, Sendable {
@@ -25,6 +26,17 @@ struct AssociationRecord: Codable, Identifiable, Sendable {
     var createdAt = Date()
     var previousAppSortKey: String { previousAppID ?? "" }
     var statusSortKey: String { targetAppID }
+    var commonSortKey: String { extensions.contains(where: ExtensionUsage.isCommon) ? "1" : "0" }
+}
+
+enum ExtensionUsage {
+    static let common: Set<String> = [
+        "txt", "md", "rtf", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv",
+        "jpg", "jpeg", "png", "gif", "webp", "heic", "svg", "mp3", "wav", "m4a", "mp4", "mov", "mkv",
+        "zip", "7z", "rar", "tar", "gz", "json", "xml", "yaml", "yml", "html", "htm", "css", "js",
+        "ts", "tsx", "jsx", "py", "java", "c", "h", "cpp", "swift", "rs"
+    ]
+    static func isCommon(_ ext: String) -> Bool { common.contains(RoutingRules.normalize(ext)) }
 }
 
 struct OperationResult: Identifiable, Sendable {

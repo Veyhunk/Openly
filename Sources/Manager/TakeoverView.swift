@@ -32,6 +32,9 @@ struct TakeoverView: View {
             }
             Table(records.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("后缀", value: \.id) { r in Text(r.extensions.map { "." + $0 }.joined(separator: ", ")) }
+                TableColumn("常用", value: \.commonSortKey) { r in
+                    if r.extensions.contains(where: ExtensionUsage.isCommon) { Image(systemName: "star.fill").foregroundStyle(.yellow) }
+                }.width(min: 42, ideal: 48, max: 56)
                 TableColumn("接管前应用", value: \.previousAppSortKey) { r in Text(AssociationService.name(r.previousAppID)) }
                 TableColumn("当前状态", value: \.statusSortKey) { r in Text(RoutingRules.isReceiverID(AssociationService.current(r.id)) ? "已接管" : "已被更改 / 未生效") }
             }.frame(minHeight: 150)
@@ -79,11 +82,13 @@ struct TakeoverSelection: View {
     @NativeState private var search = ""
     @NativeState private var selected = Set<String>()
     @NativeState private var onlySelected = false
+    @NativeState private var commonOnly = false
     var candidates: [FileTypeRow] {
         let app = store.apps.first { $0.id == appID }
         return store.rows.filter { row in
             if onlySelected { return selected.contains(row.id) }
             guard search.isEmpty || row.id.localizedCaseInsensitiveContains(RoutingRules.normalize(search)) || row.description.localizedCaseInsensitiveContains(search) else { return false }
+            if commonOnly && !row.isCommon { return false }
             if mode == "按类型" { return category == "全部" || row.category == category }
             guard let app else { return false }
             let declared = app.supportedExtensions.contains(row.id), current = row.appID == app.id
@@ -93,19 +98,26 @@ struct TakeoverSelection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("添加接管后缀").font(.title2)
-            HStack { Picker("来源", selection: $mode) { Text("按类型").tag("按类型"); Text("按应用").tag("按应用") }.pickerStyle(.segmented); TextField("搜索后缀或说明", text: $search).textFieldStyle(.roundedBorder) }
+            HStack { Picker("来源", selection: $mode) { Text("按类型").tag("按类型"); Text("按应用").tag("按应用") }.pickerStyle(.segmented); TextField("搜索后缀或说明", text: $search).textFieldStyle(.roundedBorder); Picker("常用", selection: $commonOnly) { Text("全部").tag(false); Text("常用").tag(true) }.pickerStyle(.segmented).frame(width: 120) }
             HSplitView {
                 if mode == "按类型" { List(store.categories, id: \.self, selection: $category) { Text($0) }.frame(width: 160) }
                 else { List(store.apps, selection: $appID) { Text($0.name).tag($0.id) }.frame(width: 180) }
                 VStack {
                     if mode == "按应用" { Picker("范围", selection: $scope) { ForEach(["声明支持", "当前默认", "全部相关"], id: \.self) { Text($0) } }.pickerStyle(.segmented) }
                     HStack {
-                        Button("全选当前结果") { selected.formUnion(candidates.filter { $0.appID != RoutingRules.receiverID }.map(\.id)) }
-                        Button("取消当前结果") { selected.subtract(candidates.map(\.id)) }; Spacer()
+                        Button("全选当前结果") { selected.formUnion(candidates.filter { !RoutingRules.isReceiverID($0.appID) }.map(\.id)) }
+                        Button("常用全选") { selected.formUnion(candidates.filter { $0.isCommon && !RoutingRules.isReceiverID($0.appID) }.map(\.id)) }
+                        Button("取消全选") { selected.removeAll() }; Spacer()
                     }
                     List(candidates) { row in
                         Toggle(isOn: Binding(get: { selected.contains(row.id) }, set: { if $0 { selected.insert(row.id) } else { selected.remove(row.id) } })) {
-                            HStack { Text("." + row.id).monospaced().frame(width: 85, alignment: .leading); Text(row.description); Spacer(); Text(row.appName).foregroundStyle(.secondary) }
+                            HStack {
+                                Text("." + row.id).monospaced().frame(width: 85, alignment: .leading)
+                                if row.isCommon { Image(systemName: "star.fill").foregroundStyle(.yellow).help("常用").frame(width: 20) }
+                                Text(row.description)
+                                Spacer()
+                                Text(row.appName).foregroundStyle(.secondary)
+                            }
                         }.disabled(RoutingRules.isReceiverID(row.appID))
                     }
                 }
