@@ -17,6 +17,10 @@ enum OpenlyPreferences {
         get { value("Openly.autoOpenSingleOption", default: true) }
         set { defaults.set(newValue, forKey: "Openly.autoOpenSingleOption"); notify() }
     }
+    static var lightweightDelaySeconds: Double {
+        get { (defaults.object(forKey: "Openly.lightweightDelaySeconds") as? NSNumber)?.doubleValue ?? 0 }
+        set { defaults.set(max(0, newValue), forKey: "Openly.lightweightDelaySeconds"); notify() }
+    }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         guard defaults.object(forKey: key) != nil else { return fallback }

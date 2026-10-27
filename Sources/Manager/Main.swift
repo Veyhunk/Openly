@@ -18,6 +18,7 @@ struct OpenlyMain {
     var routeModels: [UUID: RouterModel] = [:]
     var routeWindows: [UUID: NSWindow] = [:]
     var statusItem: NSStatusItem?
+    var lightweightWorkItem: DispatchWorkItem?
     var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID || Bundle.main.object(forInfoDictionaryKey: "OpenlyReceiver") as? Bool == true }
     var lightModeEnabled: Bool { OpenlyPreferences.lightweightModeEnabled }
     var residentBackground: Bool { OpenlyPreferences.residentBackground }
@@ -65,6 +66,7 @@ struct OpenlyMain {
     }
     func finishRequest(_ id: UUID) { routeWindows[id]?.close(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && !lightModeEnabled && routeModels.isEmpty { NSApp.terminate(nil) } }
     func showManager() {
+        lightweightWorkItem?.cancel(); lightweightWorkItem = nil
         if managerWindow == nil {
             let store = AppStore(); self.store = store; let window = makeWindow(title: "Openly", size: NSSize(width: 1120, height: 760)); window.minSize = NSSize(width: 880, height: 600); window.contentView = NSHostingView(rootView: ManagerView(store: store)); window.delegate = self; managerWindow = window
         }
@@ -87,7 +89,15 @@ struct OpenlyMain {
             if let statusItem { NSStatusBar.system.removeStatusItem(statusItem); self.statusItem = nil }
         }
     }
-    func makeWindow(title: String, size: NSSize) -> NSWindow { let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false); w.title = title; w.isReleasedWhenClosed = false; w.center(); return w }
+    func makeWindow(title: String, size: NSSize) -> NSWindow {
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        w.title = title; w.isReleasedWhenClosed = false
+        if title == "Openly", let value = UserDefaults.standard.string(forKey: "Openly.managerFrame") {
+            let frame = NSRectFromString(value)
+            if frame.width >= 880, frame.height >= 600, NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) { w.setFrame(frame, display: false) } else { w.center() }
+        } else { w.center() }
+        return w
+    }
     func routeID(for window: NSWindow) -> UUID? { routeWindows.first { $0.value === window }?.key }
     func windowDidBecomeKey(_ notification: Notification) { if let window = notification.object as? NSWindow, routeID(for: window) != nil { window.level = .normal } }
     func windowDidResignKey(_ notification: Notification) { if let window = notification.object as? NSWindow, routeID(for: window) != nil { window.level = .normal } }
@@ -99,8 +109,9 @@ struct OpenlyMain {
         guard let window = notification.object as? NSWindow else { return }
         if let id = routeID(for: window) { routeModels[id]?.cancelAll(); routeWindows.removeValue(forKey: id); routeModels.removeValue(forKey: id); if isReceiver && !lightModeEnabled && routeModels.isEmpty { NSApp.terminate(nil) } }
         if window === managerWindow {
+            UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "Openly.managerFrame")
             managerWindow = nil; store = nil
-            applyActivationPolicy(); configureStatusItem()
+            scheduleLightweightTransition()
         }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -120,6 +131,18 @@ struct OpenlyMain {
     func applyActivationPolicy() {
         guard !isReceiver else { NSApp.setActivationPolicy(.accessory); return }
         NSApp.setActivationPolicy(OpenlyPreferences.dockIconVisible && managerWindow != nil ? .regular : .accessory)
+    }
+    func scheduleLightweightTransition() {
+        lightweightWorkItem?.cancel(); lightweightWorkItem = nil
+        guard !isReceiver, residentBackground else { applyActivationPolicy(); configureStatusItem(); return }
+        let delay = OpenlyPreferences.lightweightDelaySeconds
+        if delay <= 0 { applyActivationPolicy(); configureStatusItem(); return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.managerWindow == nil, self.residentBackground else { return }
+            self.applyActivationPolicy(); self.configureStatusItem(); self.lightweightWorkItem = nil
+        }
+        lightweightWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
     @objc func refresh() { Task { await store?.refresh() } }
     @objc func exportConfig() { store?.exportConfig() }

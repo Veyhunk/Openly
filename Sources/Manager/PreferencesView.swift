@@ -4,6 +4,7 @@ struct PreferencesView: View {
     @NativeState private var dockIconVisible = OpenlyPreferences.dockIconVisible
     @NativeState private var residentBackground = OpenlyPreferences.residentBackground
     @NativeState private var autoOpenSingleOption = OpenlyPreferences.autoOpenSingleOption
+    @NativeState private var lightweightDelaySeconds = OpenlyPreferences.lightweightDelaySeconds
 
     var body: some View {
         Form {
@@ -18,6 +19,17 @@ struct PreferencesView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 3)
+                Picker("进入轻量模式", selection: $lightweightDelaySeconds) {
+                    Text("立即").tag(0.0)
+                    Text("10 秒后").tag(10.0)
+                    Text("30 秒后").tag(30.0)
+                    Text("1 分钟后").tag(60.0)
+                }
+                .onChange(of: lightweightDelaySeconds) { OpenlyPreferences.lightweightDelaySeconds = lightweightDelaySeconds }
+                .disabled(!residentBackground)
+                Text("延迟期间可以再次启动 Openly，窗口会立即恢复并取消进入轻量模式。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .disabled(!residentBackground)
             }
             Section("打开选择") {
                 Toggle("只有一种打开方式时直接打开", isOn: $autoOpenSingleOption)
