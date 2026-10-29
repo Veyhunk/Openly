@@ -32,6 +32,10 @@ enum OpenlyPreferences {
         get { value("Openly.advancedRoutingMode", default: false) }
         set { defaults.set(newValue, forKey: "Openly.advancedRoutingMode"); notify() }
     }
+    static var takeoverEnabled: Bool {
+        get { value("Openly.takeoverEnabled", default: true) }
+        set { defaults.set(newValue, forKey: "Openly.takeoverEnabled"); notify() }
+    }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         _ = defaults.synchronize()

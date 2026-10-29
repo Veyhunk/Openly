@@ -6,6 +6,7 @@ struct PreferencesView: View {
     @NativeState private var autoOpenSingleOption = OpenlyPreferences.autoOpenSingleOption
     @NativeState private var lightweightDelaySeconds = OpenlyPreferences.lightweightDelaySeconds
     @NativeState private var advancedRoutingMode = OpenlyPreferences.advancedRoutingMode
+    @NativeState private var takeoverEnabled = OpenlyPreferences.takeoverEnabled
 
     var body: some View {
         Form {
@@ -33,6 +34,10 @@ struct PreferencesView: View {
                     .disabled(!residentBackground)
             }
             Section("打开选择") {
+                Toggle("启用打开接管", isOn: $takeoverEnabled)
+                    .onChange(of: takeoverEnabled) { OpenlyPreferences.takeoverEnabled = takeoverEnabled }
+                Text(takeoverEnabled ? "系统打开请求会进入 Openly，按你的选择打开。" : "系统打开请求会直接交给接管前保存的原始应用。")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("只有一种打开方式时直接打开", isOn: $autoOpenSingleOption)
                     .onChange(of: autoOpenSingleOption) { OpenlyPreferences.autoOpenSingleOption = autoOpenSingleOption }
                 Text("存在多个应用窗口、浏览器 Profile、标签组或无痕选项时，仍会显示选择窗口。")

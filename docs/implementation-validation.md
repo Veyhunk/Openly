@@ -29,6 +29,7 @@
 | 空闲退出 | 基础接收器完成请求后退出；性能测试中的接收器逐次确认退出 |
 | Finder 前台唤起 | 独立测试接收器从 Finder 发起后 active=true、keyWindow=true、level=0，正常窗口层级即可获得焦点 |
 | 两步选择器 | 五列紧凑应用网格、推荐／全部筛选、两行地址目标区、无图标打开方式卡片、进入 VS Code／Chrome 卡片页及返回均通过实机检查 |
+| 接管总开关 | 偏好设置与菜单栏快速开关共享状态；关闭后按恢复记录直接分组打开原始应用，避免重新进入接管选择器 |
 | 菜单与打包脚本 | Bash 语法、Python 编译、扩展 JS 语法通过；PTY 验证方向键与数字退出 |
 
 自动化入口：`bash scripts/test.sh`、`node scripts/test-browser-extension.cjs`、`bash scripts/test.sh --integration`。系统集成测试使用项目内独立类型，HTTP/HTTPS 的日常默认浏览器设置保持原值。

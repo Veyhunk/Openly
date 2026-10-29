@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 @main
 struct OpenlyMain {
@@ -47,6 +48,10 @@ struct OpenlyMain {
     func application(_ application: NSApplication, open urls: [URL]) {
         let valid = urls.filter { $0.isFileURL || ["http", "https"].contains($0.scheme?.lowercased() ?? "") }
         guard !valid.isEmpty else { return }
+        guard OpenlyPreferences.takeoverEnabled else {
+            Task { await openOriginal(valid) }
+            return
+        }
         let id = UUID(); let router = RouterModel(); router.enqueue(valid); routeModels[id] = router
         let window = makeWindow(title: "用哪个应用打开？", size: NSSize(width: 760, height: 520))
         window.contentView = NSHostingView(rootView: RouteView(model: router))
@@ -81,6 +86,8 @@ struct OpenlyMain {
             let menu = NSMenu()
             menu.addItem(withTitle: "打开 Openly", action: #selector(openFromStatusItem), keyEquivalent: "").target = self
             menu.addItem(.separator())
+            let takeover = menu.addItem(withTitle: "打开接管", action: #selector(toggleTakeover), keyEquivalent: "")
+            takeover.state = OpenlyPreferences.takeoverEnabled ? .on : .off; takeover.target = self
             let light = menu.addItem(withTitle: "轻量模式：窗口关闭后自动启用", action: nil, keyEquivalent: ""); light.isEnabled = false
             menu.addItem(.separator())
             menu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
@@ -126,6 +133,7 @@ struct OpenlyMain {
         let view = NSMenu(title: "视图"); let vi = NSMenuItem(title: "视图", action: nil, keyEquivalent: ""); vi.submenu = view; main.addItem(vi); view.addItem(withTitle: "刷新", action: #selector(refresh), keyEquivalent: "r").target = self; view.addItem(withTitle: "偏好设置…", action: #selector(openPreferences), keyEquivalent: ",").target = self; NSApp.mainMenu = main
     }
     @objc func openFromStatusItem() { showManager() }
+    @objc func toggleTakeover() { OpenlyPreferences.takeoverEnabled.toggle(); configureStatusItem() }
     @objc func openPreferences() { showManager(); store?.page = "偏好设置" }
     @objc func preferencesChanged() { applyActivationPolicy(); configureStatusItem() }
     func applyActivationPolicy() {
@@ -141,6 +149,45 @@ struct OpenlyMain {
                 window.makeKeyAndOrderFront(nil)
             }
         }
+    }
+    func originalAppID(for url: URL, state: LocalState) -> String? {
+        let key: String?
+        if url.isFileURL, let type = UTType(filenameExtension: url.pathExtension) { key = type.identifier }
+        else if let scheme = url.scheme { key = "scheme:\(scheme.lowercased())" }
+        else { key = nil }
+        guard let key else { return nil }
+        let current = AssociationService.current(key)
+        if let record = state.records.first(where: { $0.id == key && RoutingRules.isReceiverID($0.targetAppID) }),
+           let previous = record.previousAppID, !RoutingRules.isReceiverID(previous) { return previous }
+        if !RoutingRules.isReceiverID(current) { return current }
+        return nil
+    }
+    func openOriginal(_ urls: [URL]) async {
+        let state = (try? StateFiles.read()) ?? LocalState()
+        var grouped: [String: [URL]] = [:]
+        var fallback: [URL] = []
+        for url in urls {
+            if let id = originalAppID(for: url, state: state), AssociationService.appURL(id) != nil { grouped[id, default: []].append(url) }
+            else if let current = currentAppID(for: url), !RoutingRules.isReceiverID(current) { fallback.append(url) }
+        }
+        do {
+            for (id, values) in grouped {
+                guard let appURL = AssociationService.appURL(id) else { continue }
+                let config = NSWorkspace.OpenConfiguration(); config.activates = true
+                _ = try await NSWorkspace.shared.open(values, withApplicationAt: appURL, configuration: config)
+            }
+            if !fallback.isEmpty {
+                let config = NSWorkspace.OpenConfiguration(); config.activates = true
+                for url in fallback { _ = try await NSWorkspace.shared.open(url, configuration: config) }
+            }
+        } catch {
+            // 关闭接管时保持系统原生打开路径，单次失败不重新唤起选择器。
+        }
+    }
+    func currentAppID(for url: URL) -> String? {
+        if url.isFileURL, let type = UTType(filenameExtension: url.pathExtension) { return AssociationService.current(type.identifier) }
+        if let scheme = url.scheme { return AssociationService.current("scheme:\(scheme.lowercased())") }
+        return nil
     }
     func scheduleLightweightTransition() {
         lightweightWorkItem?.cancel(); lightweightWorkItem = nil
