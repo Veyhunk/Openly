@@ -34,6 +34,7 @@ enum OpenlyPreferences {
     }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
+        _ = defaults.synchronize()
         guard defaults.object(forKey: key) != nil else { return fallback }
         return defaults.bool(forKey: key)
     }

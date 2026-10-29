@@ -48,9 +48,9 @@ struct OpenlyMain {
         let valid = urls.filter { $0.isFileURL || ["http", "https"].contains($0.scheme?.lowercased() ?? "") }
         guard !valid.isEmpty else { return }
         let id = UUID(); let router = RouterModel(); router.enqueue(valid); routeModels[id] = router
-        let window = makeWindow(title: "用哪个应用打开？", size: NSSize(width: 820, height: 620))
+        let window = makeWindow(title: "用哪个应用打开？", size: NSSize(width: 760, height: 520))
         window.contentView = NSHostingView(rootView: RouteView(model: router))
-        window.minSize = NSSize(width: 640, height: 460); window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]; window.delegate = self; routeWindows[id] = window
+        window.minSize = NSSize(width: 680, height: 520); window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]; window.delegate = self; routeWindows[id] = window
         router.onDismiss = { [weak self] in self?.finishRequest(id) }
         router.onWillOpen = { [weak self] in self?.routeWindows[id]?.orderOut(nil) }
         router.onFailure = { [weak self] in self?.showChooser(id) }

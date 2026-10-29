@@ -56,11 +56,22 @@ final class RouterModel {
     }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
-    var candidates: [AppInfo] { apps.filter { (!onlyCompatible || supports($0)) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }.sorted { a,b in
+    var candidates: [AppInfo] {
+        let defaultID = systemDefaultApp?.id
+        return apps.filter { app in
+            guard !onlyCompatible || supports(app) else { return false }
+            guard !search.isEmpty else { return true }
+            let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+            let haystack = ([app.name, app.id] + app.supportedExtensions.map { ".\($0)" }).joined(separator: " ")
+            return haystack.localizedCaseInsensitiveContains(query)
+        }.sorted { a,b in
+        if a.id == defaultID, b.id != defaultID { return true }
+        if b.id == defaultID, a.id != defaultID { return false }
         let ca = supports(a), cb = supports(b)
         if ca != cb { return ca }
         return a.name.localizedStandardCompare(b.name) == .orderedAscending
-    } }
+        }
+    }
     func supports(_ app: AppInfo) -> Bool { supportedIDs.contains(app.id) }
     func updateCompatibility() {
         supportedIDs = Set(apps.filter { app in

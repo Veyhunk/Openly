@@ -68,6 +68,10 @@ import Foundation
         model.selectApp("supported")
         XCTAssertEqual(model.step, "options")
         model.backToApps()
+        OpenlyPreferences.advancedRoutingMode = true
+        model.selectApp("supported")
+        XCTAssertEqual(model.step, "advanced")
+        model.backToApps()
         XCTAssertEqual(model.step, "apps")
         XCTAssertEqual(model.urls[0].lastPathComponent, "sample.txt")
     }
