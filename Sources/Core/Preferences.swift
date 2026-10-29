@@ -36,6 +36,13 @@ enum OpenlyPreferences {
         get { value("Openly.takeoverEnabled", default: true) }
         set { defaults.set(newValue, forKey: "Openly.takeoverEnabled"); notify() }
     }
+    static var lastBrowserAppID: String? {
+        get { defaults.string(forKey: "Openly.lastBrowserAppID") }
+        set {
+            if let newValue { defaults.set(newValue, forKey: "Openly.lastBrowserAppID") }
+            else { defaults.removeObject(forKey: "Openly.lastBrowserAppID") }
+        }
+    }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         _ = defaults.synchronize()

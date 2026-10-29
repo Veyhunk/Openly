@@ -174,6 +174,9 @@ final class RouterModel {
         do {
             guard FileManager.default.fileExists(atPath: app.path) else { throw OpenlyError("应用已移动或删除，请重新选择") }
             onWillOpen?()
+            if chromium && items.contains(where: { ["http", "https"].contains($0.scheme?.lowercased() ?? "") }) {
+                OpenlyPreferences.lastBrowserAppID = app.id
+            }
             if mode == "browserWindow" {
                 guard let windowID = browserWindowID, let extensionID = bridgeIDs[app.id] else { throw OpenlyError("请重新读取浏览器窗口") }
                 var payload: [String: Any] = ["action": "open", "windowId": windowID, "urls": items.map(\.absoluteString)]

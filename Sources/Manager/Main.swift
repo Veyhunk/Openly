@@ -156,6 +156,9 @@ struct OpenlyMain {
         else if let scheme = url.scheme { key = "scheme:\(scheme.lowercased())" }
         else { key = nil }
         guard let key else { return nil }
+        if key.hasPrefix("scheme:"), let browser = OpenlyPreferences.lastBrowserAppID, AssociationService.appURL(browser) != nil {
+            return browser
+        }
         let current = AssociationService.current(key)
         if let record = state.records.first(where: { $0.id == key && RoutingRules.isReceiverID($0.targetAppID) }),
            let previous = record.previousAppID, !RoutingRules.isReceiverID(previous) { return previous }
