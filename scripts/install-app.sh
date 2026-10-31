@@ -6,6 +6,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_APP="$PROJECT_DIR/.build/Openly.app"
 BUILD_BINARY="$BUILD_APP/Contents/MacOS/Openly"
 INSTALL_APP="/Applications/Openly.app"
+BATCH_RECEIVER="$HOME/Library/Application Support/Openly/Receiver.app"
 TEMP_APP="/Applications/.Openly.app.tmp.$$"
 FORCE_BUILD=0
 NO_BUILD=0
@@ -66,11 +67,13 @@ fi
 printf 'OPENLY_BUILD_APP=%s\n' "$BUILD_APP"
 
 stopped=0
-for pid in $(pgrep -f "$INSTALL_APP/Contents" 2>/dev/null || true); do
-  if [ "$pid" != "$$" ]; then
-    kill "$pid" 2>/dev/null || true
-    stopped=$((stopped + 1))
-  fi
+for process_pattern in "$INSTALL_APP/Contents" "$BATCH_RECEIVER/Contents"; do
+  for pid in $(pgrep -f "$process_pattern" 2>/dev/null || true); do
+    if [ "$pid" != "$$" ]; then
+      kill "$pid" 2>/dev/null || true
+      stopped=$((stopped + 1))
+    fi
+  done
 done
 sleep 1
 printf 'OPENLY_OLD_PROCESSES_STOPPED=%s\n' "$stopped"
@@ -84,6 +87,22 @@ ditto "$BUILD_APP" "$TEMP_APP" || {
 rm -rf "$INSTALL_APP"
 mv "$TEMP_APP" "$INSTALL_APP"
 printf 'OPENLY_APP_REPLACED=true\n'
+
+if [ -d "$BATCH_RECEIVER/Contents" ]; then
+  atomic_receiver="$BATCH_RECEIVER/Contents/MacOS/.Openly-$$"
+  cp "$INSTALL_APP/Contents/Helpers/Openly Receiver.app/Contents/MacOS/Openly" "$atomic_receiver"
+  mv "$atomic_receiver" "$BATCH_RECEIVER/Contents/MacOS/Openly"
+  if [ -d "$INSTALL_APP/Contents/Helpers/Openly Receiver.app/Contents/Resources" ]; then
+    ditto "$INSTALL_APP/Contents/Helpers/Openly Receiver.app/Contents/Resources" "$BATCH_RECEIVER/Contents/Resources"
+  fi
+  codesign --force --deep --sign - "$BATCH_RECEIVER" >/dev/null 2>&1 || {
+    printf 'OPENLY_INSTALL_STATUS=failed\nOPENLY_ERROR=batch_receiver_resign_failed\n'
+    exit 8
+  }
+  printf 'OPENLY_BATCH_RECEIVER_UPDATED=true\n'
+else
+  printf 'OPENLY_BATCH_RECEIVER_UPDATED=false\n'
+fi
 
 bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INSTALL_APP/Contents/Info.plist" 2>/dev/null || true)"
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INSTALL_APP/Contents/Info.plist" 2>/dev/null || true)"
