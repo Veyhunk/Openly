@@ -92,7 +92,7 @@ struct OpenlyMain {
             advanced.state = OpenlyPreferences.advancedRoutingMode ? .on : .off; advanced.target = self
             let light = menu.addItem(withTitle: "轻量模式：窗口关闭后自动启用", action: nil, keyEquivalent: ""); light.isEnabled = false
             menu.addItem(.separator())
-            menu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
+            menu.addItem(withTitle: "退出 Openly", action: #selector(quitOpenly), keyEquivalent: "q").target = self
             statusItem?.menu = menu
         } else {
             if let statusItem { NSStatusBar.system.removeStatusItem(statusItem); self.statusItem = nil }
@@ -129,12 +129,20 @@ struct OpenlyMain {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !residentBackground }
     func installMenus() {
-        let main = NSMenu(); let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu; main.addItem(appItem); appMenu.addItem(withTitle: "关于 Openly", action: #selector(about), keyEquivalent: "").target = self; appMenu.addItem(.separator()); appMenu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let main = NSMenu(); let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu; main.addItem(appItem); appMenu.addItem(withTitle: "关于 Openly", action: #selector(about), keyEquivalent: "").target = self; appMenu.addItem(.separator()); appMenu.addItem(withTitle: "退出 Openly", action: #selector(quitOpenly), keyEquivalent: "q").target = self
         let file = NSMenu(title: "文件"); let item = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""); item.submenu = file; main.addItem(item); file.addItem(withTitle: "导出配置…", action: #selector(exportConfig), keyEquivalent: "S").target = self; file.addItem(withTitle: "导入配置…", action: #selector(importConfig), keyEquivalent: "O").target = self
         let edit = NSMenu(title: "编辑"); let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: ""); editItem.submenu = edit; main.addItem(editItem); for (title, action, key) in [("撤销", "undo:", "z"), ("剪切", "cut:", "x"), ("复制", "copy:", "c"), ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] { edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key) }
         let view = NSMenu(title: "视图"); let vi = NSMenuItem(title: "视图", action: nil, keyEquivalent: ""); vi.submenu = view; main.addItem(vi); view.addItem(withTitle: "刷新", action: #selector(refresh), keyEquivalent: "r").target = self; view.addItem(withTitle: "偏好设置…", action: #selector(openPreferences), keyEquivalent: ",").target = self; NSApp.mainMenu = main
     }
     @objc func openFromStatusItem() { showManager() }
+    @objc func quitOpenly() {
+        for bundleID in [RoutingRules.receiverID, RoutingRules.batchReceiverID] {
+            for process in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
+                process.terminate()
+            }
+        }
+        NSApp.terminate(nil)
+    }
     @objc func toggleTakeover() { OpenlyPreferences.takeoverEnabled.toggle(); configureStatusItem() }
     @objc func toggleAdvancedMode() { OpenlyPreferences.advancedRoutingMode.toggle(); configureStatusItem() }
     @objc func openPreferences() { showManager(); store?.page = "偏好设置" }
