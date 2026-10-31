@@ -29,12 +29,12 @@ extension RouterModel {
         if appChromium {
             for p in appProfiles {
                 let section = "个人资料 · " + p.label
-                for (mode, title, detail, symbol) in [
+                for (mode, title, _, symbol) in [
                     ("default", "默认打开", "使用此个人资料", "arrow.up.forward.app"),
                     ("new", "新窗口", "在此个人资料中新建窗口", "macwindow.badge.plus"),
                     ("incognito", "无痕窗口", "独立的无痕登录状态", "eye.slash")
                 ] {
-                    let optionDetail = mode == "default" ? p.label : "(p.label) · (detail)"
+                    let optionDetail = mode == "default" ? p.label : "\(p.label) · \(mode == "new" ? "在此个人资料中新建窗口" : "独立的无痕登录状态")"
                     options.append(.init(id: p.id + ":" + mode, section: section, title: title, detail: optionDetail, symbol: symbol, mode: mode, profile: p.id))
                 }
                 if let snapshot = appSnapshots[p.id] {
