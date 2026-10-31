@@ -49,7 +49,7 @@ struct RouteView: View {
                     .help("在 Finder 中定位文件")
                     .accessibilityLabel("在 Finder 中定位文件")
                 }
-                Text(model.urls.map(\.absoluteString).joined(separator: "\n"))
+                Text(model.urls.map(displayAddress).joined(separator: "\n"))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -63,6 +63,9 @@ struct RouteView: View {
         let files = model.urls.filter(\.isFileURL)
         guard !files.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting(files)
+    }
+    func displayAddress(_ url: URL) -> String {
+        url.isFileURL ? url.path : url.absoluteString
     }
 
     func selectedAppSummary(_ app: AppInfo) -> some View {
