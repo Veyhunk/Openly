@@ -193,3 +193,6 @@ content.tabItem { Label("通用", systemImage: "gearshape") }
 - 所有系统调用做好错误处理，用 throws
 - 中文注释 + 英文代码标识符
 - 产品名称统一使用 "Openly"
+
+## 自动发布
+每次功能修改后，按需完成APP编译(近期有编译则不重新编译)，然后安装到application，并根据输出信息验证安装状态(./scripts/install-app.sh)
