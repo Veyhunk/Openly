@@ -36,13 +36,13 @@ enum BrowserService {
     static func profiles(_ id: String) -> [BrowserProfile] {
         let url = dataRoot(id).appendingPathComponent("Local State")
         guard let data = try? Data(contentsOf: url), let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let profile = json["profile"] as? [String: Any], let cache = profile["info_cache"] as? [String: [String: Any]] else { return [.init(id: "Default", name: "默认个人资料", account: nil)] }
-        return cache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.map {
-            let info = cache[$0] ?? [:]
-            let name = info["name"] as? String ?? $0
+              let profile = json["profile"] as? [String: Any], let rawCache = profile["info_cache"] as? [String: Any] else { return [.init(id: "Default", name: "默认个人资料", account: nil)] }
+        return rawCache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.compactMap { id in
+            guard let info = rawCache[id] as? [String: Any] else { return nil }
+            let name = info["name"] as? String ?? id
             let account = (info["user_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? (info["gaia_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            return .init(id: $0, name: name, account: account)
+            return .init(id: id, name: name, account: account)
         }
     }
     static func arguments(profile: String, mode: String, urls: [URL], temporaryDirectory: URL? = nil) -> [String] {
