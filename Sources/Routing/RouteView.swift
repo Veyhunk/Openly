@@ -18,7 +18,7 @@ struct RouteView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 520, idealHeight: 520)
+        .frame(minWidth: model.advancedMode ? 1040 : 680, idealWidth: model.advancedMode ? 1080 : 760, minHeight: 520, idealHeight: 520)
         .onAppear { focusInitial(); PerformanceProbe.visible() }
         .onChange(of: model.focusRequest) { focusInitial() }
         .onChange(of: model.step) { focusInitial() }
@@ -188,7 +188,7 @@ struct RouteView: View {
                 Picker("筛选应用", selection: $model.onlyCompatible) { Text("推荐").tag(true); Text("全部").tag(false) }
                     .pickerStyle(.segmented).frame(width: 150)
             }.padding(.horizontal, 20).padding(.vertical, 10)
-            ScrollView([.horizontal, .vertical]) {
+            ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(model.candidates, id: \.id) { app in
                         let options = model.options(for: app)
@@ -196,17 +196,18 @@ struct RouteView: View {
                             HStack(spacing: 8) { AppIcon(path: app.path, size: 34); Text(app.name).font(.callout).lineLimit(2) }
                                 .frame(width: 150, alignment: .leading)
                                 .frame(minHeight: 60, alignment: .leading)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) { ForEach(options) { option in advancedOptionButton(option, app: app) } }
-                                    .padding(.vertical, 8)
-                            }.focusSection()
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 170), spacing: 8), count: 4), alignment: .leading, spacing: 8) {
+                                ForEach(options) { option in advancedOptionButton(option, app: app) }
+                            }
+                            .padding(.vertical, 8)
+                            .focusSection()
                         }
                         .padding(.horizontal, 14)
                         .overlay(alignment: .bottom) { Divider() }
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 18)
             }
-        }.frame(minWidth: 680, minHeight: 360)
+        }.frame(minWidth: 1000, minHeight: 360)
     }
 
     func advancedOptionButton(_ option: RouteOption, app: AppInfo) -> some View {
