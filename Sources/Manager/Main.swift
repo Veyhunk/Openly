@@ -88,6 +88,8 @@ struct OpenlyMain {
             menu.addItem(.separator())
             let takeover = menu.addItem(withTitle: "打开接管", action: #selector(toggleTakeover), keyEquivalent: "")
             takeover.state = OpenlyPreferences.takeoverEnabled ? .on : .off; takeover.target = self
+            let advanced = menu.addItem(withTitle: "高级打开方式页面", action: #selector(toggleAdvancedMode), keyEquivalent: "")
+            advanced.state = OpenlyPreferences.advancedRoutingMode ? .on : .off; advanced.target = self
             let light = menu.addItem(withTitle: "轻量模式：窗口关闭后自动启用", action: nil, keyEquivalent: ""); light.isEnabled = false
             menu.addItem(.separator())
             menu.addItem(withTitle: "退出 Openly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
@@ -134,6 +136,7 @@ struct OpenlyMain {
     }
     @objc func openFromStatusItem() { showManager() }
     @objc func toggleTakeover() { OpenlyPreferences.takeoverEnabled.toggle(); configureStatusItem() }
+    @objc func toggleAdvancedMode() { OpenlyPreferences.advancedRoutingMode.toggle(); configureStatusItem() }
     @objc func openPreferences() { showManager(); store?.page = "偏好设置" }
     @objc func preferencesChanged() { applyActivationPolicy(); configureStatusItem() }
     func applyActivationPolicy() {
