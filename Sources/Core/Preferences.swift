@@ -43,6 +43,16 @@ enum OpenlyPreferences {
             else { defaults.removeObject(forKey: "Openly.lastBrowserAppID") }
         }
     }
+    static var closeWindowBehavior: String {
+        get { defaults.string(forKey: "Openly.closeWindowBehavior") ?? "ask" }
+        set { defaults.set(newValue, forKey: "Openly.closeWindowBehavior"); notify() }
+    }
+    static func requestManagerBackground() { defaults.set(true, forKey: "Openly.managerBackgroundRequested") }
+    static func consumeManagerBackgroundRequest() -> Bool {
+        let requested = defaults.bool(forKey: "Openly.managerBackgroundRequested")
+        if requested { defaults.set(false, forKey: "Openly.managerBackgroundRequested") }
+        return requested
+    }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         _ = defaults.synchronize()

@@ -20,6 +20,8 @@ struct OpenlyMain {
     var routeWindows: [UUID: NSWindow] = [:]
     var statusItem: NSStatusItem?
     var lightweightWorkItem: DispatchWorkItem?
+    var closeWindowExitOverride: Bool?
+    var shuttingDown = false
     var isReceiver: Bool { Bundle.main.bundleIdentifier == RoutingRules.receiverID || Bundle.main.object(forInfoDictionaryKey: "OpenlyReceiver") as? Bool == true }
     var lightModeEnabled: Bool { OpenlyPreferences.lightweightModeEnabled }
     var residentBackground: Bool { OpenlyPreferences.residentBackground }
@@ -35,11 +37,15 @@ struct OpenlyMain {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
         configureStatusItem()
-        if !isReceiver { showManager() }
+        if !isReceiver {
+            if !OpenlyPreferences.consumeManagerBackgroundRequest() { showManager() }
+            else { applyActivationPolicy(); configureStatusItem() }
+        }
         else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, !self.lightModeEnabled, self.routeModels.isEmpty else { return }
             NSApp.terminate(nil)
         } }
+        if isReceiver { bootstrapManagerIfNeeded() }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !isReceiver { showManager() } else { routeWindows.keys.forEach { showChooser($0) } }
@@ -76,6 +82,7 @@ struct OpenlyMain {
             let store = AppStore(); self.store = store; let window = makeWindow(title: "Openly", size: NSSize(width: 1120, height: 760)); window.minSize = NSSize(width: 880, height: 600); window.contentView = NSHostingView(rootView: ManagerView(store: store)); window.delegate = self; managerWindow = window
         }
         applyActivationPolicy()
+        configureStatusItem()
         managerWindow?.makeKeyAndOrderFront(nil); NSApp.activate()
     }
     func configureStatusItem() {
@@ -112,7 +119,12 @@ struct OpenlyMain {
     func windowDidResignKey(_ notification: Notification) { if let window = notification.object as? NSWindow, routeID(for: window) != nil { window.level = .normal } }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if let id = routeID(for: sender) { guard routeModels[id]?.busy != true else { return false }; routeModels[id]?.cancelAll(); return true }
-        if sender === managerWindow, store?.busy == true { store?.stop = true; return false }; return true
+        if sender === managerWindow {
+            if store?.busy == true { store?.stop = true; return false }
+            guard residentBackground else { return true }
+            return resolveManagerClose()
+        }
+        return true
     }
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
@@ -120,14 +132,21 @@ struct OpenlyMain {
         if window === managerWindow {
             UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "Openly.managerFrame")
             managerWindow = nil; store = nil
-            scheduleLightweightTransition()
+            if closeWindowExitOverride == true || !residentBackground {
+                closeWindowExitOverride = nil
+                DispatchQueue.main.async { [weak self] in self?.quitOpenly() }
+            } else {
+                closeWindowExitOverride = nil
+                scheduleLightweightTransition()
+            }
         }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if shuttingDown { return .terminateNow }
         if routeModels.values.contains(where: { $0.busy }) || store?.busy == true { store?.stop = true; let alert = NSAlert(); alert.messageText = "正在完成当前操作"; alert.informativeText = "当前打开或关联修改完成后才能退出。"; alert.runModal(); return .terminateCancel }
         return .terminateNow
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !residentBackground }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { closeWindowExitOverride ?? !residentBackground }
     func installMenus() {
         let main = NSMenu(); let appMenu = NSMenu(); let appItem = NSMenuItem(); appItem.submenu = appMenu; main.addItem(appItem); appMenu.addItem(withTitle: "关于 Openly", action: #selector(about), keyEquivalent: "").target = self; appMenu.addItem(.separator()); appMenu.addItem(withTitle: "退出 Openly", action: #selector(quitOpenly), keyEquivalent: "q").target = self
         let file = NSMenu(title: "文件"); let item = NSMenuItem(title: "文件", action: nil, keyEquivalent: ""); item.submenu = file; main.addItem(item); file.addItem(withTitle: "导出配置…", action: #selector(exportConfig), keyEquivalent: "S").target = self; file.addItem(withTitle: "导入配置…", action: #selector(importConfig), keyEquivalent: "O").target = self
@@ -136,10 +155,16 @@ struct OpenlyMain {
     }
     @objc func openFromStatusItem() { showManager() }
     @objc func quitOpenly() {
+        shuttingDown = true
         for bundleID in [RoutingRules.receiverID, RoutingRules.batchReceiverID] {
             for process in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
                 process.terminate()
+                if !process.isTerminated { process.forceTerminate() }
             }
+        }
+        for pattern in ["Openly Receiver.app/Contents/MacOS/Openly", "Library/Application Support/Openly/Receiver.app/Contents/MacOS/Openly"] {
+            let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill"); process.arguments = ["-TERM", "-f", pattern]
+            try? process.run(); process.waitUntilExit()
         }
         NSApp.terminate(nil)
     }
@@ -214,6 +239,33 @@ struct OpenlyMain {
         }
         lightweightWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+    func resolveManagerClose() -> Bool {
+        let behavior = OpenlyPreferences.closeWindowBehavior
+        if behavior == "keep" { closeWindowExitOverride = false; return true }
+        if behavior == "exit" { closeWindowExitOverride = true; return true }
+        let alert = NSAlert()
+        alert.messageText = "关闭 Openly 窗口"
+        alert.informativeText = "是否同时退出后台接管进程？"
+        alert.addButton(withTitle: "退出后台")
+        alert.addButton(withTitle: "保留后台")
+        alert.addButton(withTitle: "取消")
+        let remember = NSButton(checkboxWithTitle: "记住我的选择", target: nil, action: nil)
+        alert.accessoryView = remember
+        let response = alert.runModal()
+        guard response != .alertThirdButtonReturn else { return false }
+        let exit = response == .alertFirstButtonReturn
+        closeWindowExitOverride = exit
+        if remember.state == .on { OpenlyPreferences.closeWindowBehavior = exit ? "exit" : "keep" }
+        return true
+    }
+    func bootstrapManagerIfNeeded() {
+        guard isReceiver, NSRunningApplication.runningApplications(withBundleIdentifier: RoutingRules.managerID).isEmpty else { return }
+        let embedded = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        guard let manager = NSWorkspace.shared.urlForApplication(withBundleIdentifier: RoutingRules.managerID) ?? (FileManager.default.fileExists(atPath: embedded.path) ? embedded : nil) else { return }
+        OpenlyPreferences.requestManagerBackground()
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/open"); process.arguments = ["-g", manager.path]
+        try? process.run()
     }
     @objc func refresh() { Task { await store?.refresh() } }
     @objc func exportConfig() { store?.exportConfig() }

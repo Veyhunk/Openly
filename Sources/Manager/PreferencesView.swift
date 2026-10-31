@@ -7,6 +7,7 @@ struct PreferencesView: View {
     @NativeState private var lightweightDelaySeconds = OpenlyPreferences.lightweightDelaySeconds
     @NativeState private var advancedRoutingMode = OpenlyPreferences.advancedRoutingMode
     @NativeState private var takeoverEnabled = OpenlyPreferences.takeoverEnabled
+    @NativeState private var closeWindowBehavior = OpenlyPreferences.closeWindowBehavior
 
     var body: some View {
         Form {
@@ -32,6 +33,14 @@ struct PreferencesView: View {
                 Text("延迟期间可以再次启动 Openly，窗口会立即恢复并取消进入轻量模式。")
                     .font(.caption).foregroundStyle(.secondary)
                     .disabled(!residentBackground)
+                Picker("关闭管理窗口", selection: $closeWindowBehavior) {
+                    Text("每次询问").tag("ask")
+                    Text("保留后台").tag("keep")
+                    Text("退出后台").tag("exit")
+                }
+                .onChange(of: closeWindowBehavior) { OpenlyPreferences.closeWindowBehavior = closeWindowBehavior }
+                Text("决定点击红色关闭按钮或按 Command-W 时是否停止接管后台进程。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("打开选择") {
                 Toggle("启用打开接管", isOn: $takeoverEnabled)
