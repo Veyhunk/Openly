@@ -23,6 +23,11 @@ struct RouteView: View {
         .onChange(of: model.focusRequest) { focusInitial() }
         .onChange(of: model.step) { focusInitial() }
         .onExitCommand { if model.step == "apps" { model.onDismiss?() } else { model.backToApps() } }
+        .background {
+            Button("") { focusedTarget = .search }
+                .keyboardShortcut("f", modifiers: [.command])
+                .hidden()
+        }
     }
 
     var header: some View {
@@ -35,7 +40,7 @@ struct RouteView: View {
                 Text(model.urls.count == 1 ? (model.urls[0].isFileURL ? model.urls[0].lastPathComponent : model.urls[0].host ?? model.urls[0].absoluteString) : "\(model.urls.count) 个项目")
                     .font(.title3).lineLimit(1)
                 Spacer()
-                if model.step == "apps", let app = model.systemDefaultApp {
+                if model.step == "apps", (!model.advancedMode || model.selectedApp == nil), let app = model.systemDefaultApp {
                     defaultAppButton(app)
                 } else if (model.step == "options" || model.step == "advanced"), let app = model.selectedApp {
                     selectedAppSummary(app)
