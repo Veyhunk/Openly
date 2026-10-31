@@ -54,6 +54,7 @@ struct OpenlyMain {
     func application(_ application: NSApplication, open urls: [URL]) {
         let valid = urls.filter { $0.isFileURL || ["http", "https"].contains($0.scheme?.lowercased() ?? "") }
         guard !valid.isEmpty else { return }
+        if isReceiver { bootstrapManagerIfNeeded() }
         guard OpenlyPreferences.takeoverEnabled else {
             Task { await openOriginal(valid) }
             return
