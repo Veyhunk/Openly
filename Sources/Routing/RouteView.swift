@@ -1,9 +1,11 @@
 import SwiftUI
 import AppKit
 
+enum RouteFocusTarget: Hashable { case search, defaultOpen, option(String) }
+
 struct RouteView: View {
     @Bindable var model: RouterModel
-    @NativeFocus private var searchFocused: Bool
+    @NativeFocus private var focusedTarget: RouteFocusTarget?
     private let appColumns = Array(repeating: GridItem(.flexible(minimum: 106, maximum: 160), spacing: 8), count: 5)
     private let optionColumns = [GridItem(.adaptive(minimum: 220, maximum: 340), spacing: 10)]
 
@@ -17,9 +19,9 @@ struct RouteView: View {
             footer
         }
         .frame(minWidth: 680, idealWidth: 760, minHeight: 520, idealHeight: 520)
-        .onAppear { searchFocused = true; PerformanceProbe.visible() }
-        .onChange(of: model.focusRequest) { searchFocused = true }
-        .onChange(of: model.step) { searchFocused = true }
+        .onAppear { focusInitial(); PerformanceProbe.visible() }
+        .onChange(of: model.focusRequest) { focusInitial() }
+        .onChange(of: model.step) { focusInitial() }
         .onExitCommand { if model.step == "apps" { model.onDismiss?() } else { model.backToApps() } }
     }
 
@@ -64,6 +66,21 @@ struct RouteView: View {
         guard !files.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting(files)
     }
+    func focusInitial() {
+        DispatchQueue.main.async {
+            if model.advancedMode {
+                if let option = firstAdvancedOption, let app = model.candidates.first(where: { model.options(for: $0).contains(where: { $0.id == option.id }) }) {
+                    focusedTarget = .option("\(app.id):\(option.id)")
+                } else { focusedTarget = .search }
+            } else if model.step == "apps", model.systemDefaultApp != nil {
+                focusedTarget = .defaultOpen
+            } else { focusedTarget = .search }
+        }
+    }
+    var firstAdvancedOption: RouteOption? {
+        for app in model.candidates { if let option = model.options(for: app).first(where: { model.isOriginalDefault($0, app: app) }) { return option } }
+        return model.candidates.first.flatMap { model.options(for: $0).first }
+    }
     func displayAddress(_ url: URL) -> String {
         url.isFileURL ? url.path : url.absoluteString
     }
@@ -98,13 +115,14 @@ struct RouteView: View {
         .disabled(model.busy)
         .help("使用系统默认应用 \(app.name) 打开")
         .accessibilityLabel("默认打开，使用 \(app.name)")
+        .focused($focusedTarget, equals: .defaultOpen)
     }
 
     var appGrid: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
                 TextField("搜索应用", text: $model.search)
-                    .textFieldStyle(.roundedBorder).focused($searchFocused)
+                    .textFieldStyle(.roundedBorder).focused($focusedTarget, equals: .search)
                     .accessibilityLabel("搜索应用名称、Bundle ID 或扩展名")
                 Picker("筛选应用", selection: $model.onlyCompatible) {
                     Text("推荐").tag(true); Text("全部").tag(false)
@@ -114,7 +132,7 @@ struct RouteView: View {
             .padding(.horizontal, 20).padding(.vertical, 14)
             ScrollView([.horizontal, .vertical]) {
                 LazyVGrid(columns: appColumns, alignment: .center, spacing: 4) {
-                    ForEach(model.candidates) { app in
+                    ForEach(model.candidates, id: \.id) { app in
                         let isDefault = model.systemDefaultApp?.id == app.id
                         Button { model.selectApp(app.id) } label: {
                             VStack(spacing: 4) {
@@ -140,29 +158,47 @@ struct RouteView: View {
     }
 
     var advancedLayout: some View {
-        HSplitView {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.candidates) { app in
-                        let isDefault = model.systemDefaultApp?.id == app.id
-                        Button { model.selectApp(app.id) } label: {
-                            HStack(spacing: 9) {
-                                AppIcon(path: app.path, size: 34)
-                                Text(app.name).font(.callout).lineLimit(1)
-                                Spacer()
-                            }
-                            .frame(minHeight: 44).padding(.horizontal, 10)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                TextField("搜索应用、窗口或打开方式", text: $model.search)
+                    .textFieldStyle(.roundedBorder).focused($focusedTarget, equals: .search)
+                Picker("筛选应用", selection: $model.onlyCompatible) { Text("推荐").tag(true); Text("全部").tag(false) }
+                    .pickerStyle(.segmented).frame(width: 150)
+            }.padding(.horizontal, 20).padding(.vertical, 10)
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(model.candidates, id: \.id) { app in
+                        let options = model.options(for: app)
+                        HStack(alignment: .top, spacing: 14) {
+                            HStack(spacing: 8) { AppIcon(path: app.path, size: 34); Text(app.name).font(.callout).lineLimit(2) }
+                                .frame(width: 150, alignment: .leading)
+                                .frame(minHeight: 60, alignment: .leading)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) { ForEach(options) { option in advancedOptionButton(option, app: app) } }
+                                    .padding(.vertical, 8)
+                            }.focusSection()
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("使用 \(app.name)\(isDefault ? "，原默认应用" : "")")
+                        .padding(.horizontal, 14)
+                        .overlay(alignment: .bottom) { Divider() }
                     }
-                }
-                .padding(12)
+                }.padding(.horizontal, 8).padding(.bottom, 18)
             }
-            .frame(minWidth: 190, idealWidth: 220, maxWidth: 250)
-            optionGrid
+        }.frame(minWidth: 680, minHeight: 360)
+    }
+
+    func advancedOptionButton(_ option: RouteOption, app: AppInfo) -> some View {
+        let isDefault = model.isOriginalDefault(option, app: app)
+        return Button { Task { await model.choose(option, for: app) } } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(option.title).font(.callout.weight(.semibold)).lineLimit(1)
+                Text(option.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }.frame(minWidth: 170, minHeight: 52, alignment: .leading).padding(.horizontal, 10)
         }
-        .frame(minWidth: 680, minHeight: 360)
+        .buttonStyle(RoutingOptionButtonStyle())
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isDefault ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isDefault ? 2 : 1))
+        .focused($focusedTarget, equals: .option("\(app.id):\(option.id)"))
+        .accessibilityLabel("\(app.name)，\(option.title)，\(option.detail)\(isDefault ? "，原默认打开方式" : "")")
     }
 
     var optionGrid: some View {

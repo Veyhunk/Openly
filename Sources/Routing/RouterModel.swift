@@ -51,8 +51,12 @@ final class RouterModel {
     }
     var advancedMode: Bool { OpenlyPreferences.advancedRoutingMode }
     func isOriginalDefault(_ option: RouteOption) -> Bool {
-        guard option.mode == "default", let app = selectedApp, systemDefaultApp?.id == app.id else { return false }
-        return !chromium || option.profile == profiles.first?.id
+        guard let app = selectedApp else { return false }
+        return isOriginalDefault(option, app: app)
+    }
+    func isOriginalDefault(_ option: RouteOption, app: AppInfo) -> Bool {
+        guard option.mode == "default", systemDefaultApp?.id == app.id else { return false }
+        return !BrowserService.isChromium(app.id) || option.profile == BrowserService.profiles(app.id).first?.id
     }
     var chromium: Bool { selectedAppID.map(BrowserService.isChromium) == true }
     var vscode: Bool { selectedAppID == "com.microsoft.VSCode" || selectedAppID == "com.microsoft.VSCodeInsiders" }
