@@ -39,11 +39,30 @@ struct RouteView: View {
                     selectedAppSummary(app)
                 }
             }
-            Text(model.urls.map(\.absoluteString).joined(separator: "\n"))
-                .font(.caption).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
-                .accessibilityLabel("完整地址")
+            HStack(alignment: .top, spacing: 6) {
+                if model.urls.contains(where: \.isFileURL) {
+                    Button { locateFiles() } label: {
+                        Image(systemName: "location")
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .help("在 Finder 中定位文件")
+                    .accessibilityLabel("在 Finder 中定位文件")
+                }
+                Text(model.urls.map(\.absoluteString).joined(separator: "\n"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .accessibilityLabel("完整地址")
+            }
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
+    }
+
+    func locateFiles() {
+        let files = model.urls.filter(\.isFileURL)
+        guard !files.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(files)
     }
 
     func selectedAppSummary(_ app: AppInfo) -> some View {
