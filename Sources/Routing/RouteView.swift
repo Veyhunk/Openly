@@ -23,6 +23,7 @@ struct RouteView: View {
         .onChange(of: model.focusRequest) { focusInitial() }
         .onChange(of: model.step) { focusInitial() }
         .onExitCommand { if model.step == "apps" { model.onDismiss?() } else { model.backToApps() } }
+        .onMoveCommand { direction in moveFocus(direction) }
         .background {
             Button("") { focusedTarget = .search }
                 .keyboardShortcut("f", modifiers: [.command])
@@ -85,6 +86,23 @@ struct RouteView: View {
     var firstAdvancedOption: RouteOption? {
         for app in model.candidates { if let option = model.options(for: app).first(where: { model.isOriginalDefault($0, app: app) }) { return option } }
         return model.candidates.first.flatMap { model.options(for: $0).first }
+    }
+    var optionFocusKeys: [String] {
+        if model.advancedMode {
+            return model.candidates.flatMap { app in model.options(for: app).map { "\(app.id):\($0.id)" } }
+        }
+        return model.availableOptions.map(\.id)
+    }
+    func moveFocus(_ direction: MoveCommandDirection) {
+        guard !optionFocusKeys.isEmpty else { return }
+        guard case .option(let current) = focusedTarget, let index = optionFocusKeys.firstIndex(of: current) else { return }
+        let next: Int
+        switch direction {
+        case .left, .up: next = max(0, index - 1)
+        case .right, .down: next = min(optionFocusKeys.count - 1, index + 1)
+        @unknown default: return
+        }
+        focusedTarget = .option(optionFocusKeys[next])
     }
     func displayAddress(_ url: URL) -> String {
         url.isFileURL ? url.path : url.absoluteString
@@ -237,6 +255,7 @@ struct RouteView: View {
                                         if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
                                     }
                                     .overlay(RoundedRectangle(cornerRadius: 9).stroke(isDefault ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isDefault ? 2 : 1))
+                                    .focused($focusedTarget, equals: .option(option.id))
                                     .disabled(model.busy)
                                     .help(option.title + " — " + option.detail)
                                     .accessibilityLabel("\(option.title)，\(option.detail)\(isDefault ? "，原默认打开方式" : "")")
