@@ -13,7 +13,7 @@
 
 ## 安装并重启本地版本
 
-使用 `bash scripts/install-app.sh` 可按需复用或编译 Release，停止旧版 Openly，将产物安装到 `/Applications/Openly.app` 并启动。命令输出 `OPENLY_*` 状态字段，便于自动化检查；`--force` 强制重新编译，`--no-build` 只使用已有 Release 产物，`--no-launch` 只安装不启动。
+使用 `bash scripts/install-app.sh` 可按需复用或编译 Release。脚本会先完全退出安装版、项目构建版和所有 Receiver 进程，确认旧进程清零后再安装并启动；完成后会提示手动确认 macOS 权限。命令输出 `OPENLY_*` 状态字段，便于自动化检查；`--force` 强制重新编译，`--no-build` 只使用已有 Release 产物，`--no-launch` 只安装不启动。
 - **Chrome / Edge**：个人资料、新窗口、无痕、新建临时会话；通过配套扩展选择已有窗口与标签组。
 - **VS Code**：新窗口、最近活动窗口、聚焦指定窗口后复用打开。
 - **其他多窗口应用**：辅助功能窗口查询与聚焦后兼容打开；识别原生“新建窗口”菜单动作。
@@ -40,7 +40,7 @@ open .build/Openly.app
 
 ### 高级打开能力
 
-- 指定窗口：在 macOS“隐私与安全性 → 辅助功能”中允许 **Openly Receiver**。接收器位于 `Openly.app/Contents/Helpers/`。
+- 指定窗口：在 macOS“隐私与安全性 → 辅助功能”中分别允许 **Openly** 和 **Openly Receiver**。接收器位于 `Openly.app/Contents/Helpers/`。
 - 浏览器窗口与标签组：按 [扩展安装说明](BrowserExtension/README.md) 加载配套扩展，在打开接管页填写扩展 ID。移动应用后重新连接，以更新本机桥接路径。
 - 新建临时会话：每次使用独立的新用户数据目录打开当前内容。
 - 通用窗口兼容：应用可能自行决定最终打开位置；专用适配优先使用其明确的窗口接口。

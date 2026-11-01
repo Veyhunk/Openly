@@ -66,17 +66,39 @@ fi
 
 printf 'OPENLY_BUILD_APP=%s\n' "$BUILD_APP"
 
-stopped=0
-for process_pattern in "$INSTALL_APP/Contents" "$BATCH_RECEIVER/Contents"; do
-  for pid in $(pgrep -f "$process_pattern" 2>/dev/null || true); do
-    if [ "$pid" != "$$" ]; then
+openly_pids() {
+  ps ax -o pid= -o command= | awk -v self="$$" '
+    $1 != self && ($0 ~ /\/Openly\.app\/Contents\// || $0 ~ /Openly Receiver\.app\/Contents\//) { print $1 }
+  '
+}
+
+stop_all_openly_processes() {
+  local stopped=0 attempt pid remaining
+  for attempt in 1 2 3 4 5 6; do
+    remaining="$(openly_pids)"
+    [ -z "$remaining" ] && break
+    for pid in $remaining; do
       kill "$pid" 2>/dev/null || true
       stopped=$((stopped + 1))
-    fi
+    done
+    sleep 0.5
   done
-done
-sleep 1
-printf 'OPENLY_OLD_PROCESSES_STOPPED=%s\n' "$stopped"
+  remaining="$(openly_pids)"
+  if [ -n "$remaining" ]; then
+    for pid in $remaining; do kill -KILL "$pid" 2>/dev/null || true; done
+    sleep 0.5
+    remaining="$(openly_pids)"
+  fi
+  printf 'OPENLY_OLD_PROCESSES_STOPPED=%s\n' "$stopped"
+  if [ -n "$remaining" ]; then
+    printf 'OPENLY_PROCESS_STATUS=not_cleared\nOPENLY_INSTALL_STATUS=failed\nOPENLY_ERROR=old_processes_remain\n'
+    exit 7
+  fi
+  printf 'OPENLY_ALL_PROCESSES_CLEARED=true\n'
+}
+
+# 清理所有安装版、项目构建版和 Receiver 进程，避免旧进程继续持有旧代码和旧窗口。
+stop_all_openly_processes
 
 rm -rf "$TEMP_APP"
 ditto "$BUILD_APP" "$TEMP_APP" || {
@@ -112,7 +134,7 @@ printf 'OPENLY_INSTALLED_VERSION=%s\n' "$version"
 printf 'OPENLY_INSTALLED_BUILD=%s\n' "$build"
 
 if [ "$NO_LAUNCH" -eq 1 ]; then
-  printf 'OPENLY_LAUNCH_ACTION=skipped\nOPENLY_PROCESS_STATUS=not_started\nOPENLY_INSTALL_STATUS=ok\n'
+  printf 'OPENLY_LAUNCH_ACTION=skipped\nOPENLY_PROCESS_STATUS=not_started\nOPENLY_MANUAL_PERMISSION_CHECK_REQUIRED=true\nOPENLY_PERMISSION_MESSAGE=请手动确认 Openly 与 Openly Receiver 的辅助功能权限；Chrome Profile 还需确认完全磁盘访问权限。\nOPENLY_INSTALL_STATUS=ok\n'
   exit 0
 fi
 
@@ -120,7 +142,7 @@ printf 'OPENLY_LAUNCH_ACTION=start\n'
 open "$INSTALL_APP"
 sleep 1
 if pgrep -f "$INSTALL_APP/Contents" >/dev/null 2>&1; then
-  printf 'OPENLY_PROCESS_STATUS=running\nOPENLY_INSTALL_STATUS=ok\n'
+  printf 'OPENLY_PROCESS_STATUS=running\nOPENLY_MANUAL_PERMISSION_CHECK_REQUIRED=true\nOPENLY_PERMISSION_MESSAGE=请手动确认 Openly 与 Openly Receiver 的辅助功能权限；Chrome Profile 还需确认完全磁盘访问权限。\nOPENLY_INSTALL_STATUS=ok\n'
 else
   printf 'OPENLY_PROCESS_STATUS=missing\nOPENLY_INSTALL_STATUS=failed\nOPENLY_ERROR=launch_process_not_found\n'
   exit 7
