@@ -46,6 +46,12 @@ import Foundation
         XCTAssertEqual(args.last, url.absoluteString)
         XCTAssertTrue(args.contains("--incognito"))
     }
+    func testBrowserProfileParserKeepsAllProfiles() throws {
+        let data = Data(#"{"profile":{"info_cache":{"Default":{"name":"个人"},"Profile 5":{"name":"工作"},"Profile 6":{"name":"深色"}}}}"#.utf8)
+        let result = BrowserService.parseProfiles(data: data)
+        XCTAssertEqual(result.state, .available)
+        XCTAssertEqual(result.profiles.map(\.id), ["Default", "Profile 5", "Profile 6"])
+    }
     @MainActor func testExtensionIDValidation() {
         XCTAssertTrue(BrowserBridge.validExtensionID(String(repeating: "a", count: 32)))
         XCTAssertFalse(BrowserBridge.validExtensionID("../bad"))
@@ -133,11 +139,12 @@ func XCTAssertThrowsError(_ expression: @autoclosure () throws -> Void) { do { t
         try tests.testSnapshotRoundTrip()
         tests.testTemporaryBrowserArgumentsDoNotReusePersonalProfile()
         tests.testBrowserArgumentsKeepURLAsSingleArgument()
+        try tests.testBrowserProfileParserKeepsAllProfiles()
         tests.testExtensionIDValidation()
         tests.testQueueNeverChangesConfirmedRequest()
         try tests.testCorruptStateIsPreserved()
         tests.testAppGridDefaultsToSupportedApps()
         tests.testBrowserCardsEnumerateProfilesWindowsAndGroups()
-        print("PASS: 12 routing, recovery, import, isolation and queue checks")
+        print("PASS: 13 routing, recovery, import, isolation and queue checks")
     }
 }

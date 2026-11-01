@@ -24,6 +24,7 @@ final class RouterModel {
     var windows: [AppWindow] = []
     var genericNewWindow = false
     var browserSnapshots: [String: BrowserSnapshot] = [:]
+    var permissionRefreshToken = 0
     var targetErrors: [String: String] = [:]
     var busy = false
     var loadingTargets = false
@@ -130,6 +131,14 @@ final class RouterModel {
         refreshWindows()
     }
     func refreshWindows() { windows = selectedAppID.map(WindowAccess.windows) ?? []; windowID = nil; genericNewWindow = !chromium && !vscode && selectedAppID.flatMap { WindowAccess.newWindowAction(appID: $0) } != nil }
+    func refreshSelectedTarget() {
+        permissionRefreshToken += 1
+        guard let id = selectedAppID else { return }
+        profiles = BrowserService.isChromium(id) ? BrowserService.profiles(id) : []
+        profile = profiles.first?.id ?? "Default"
+        refreshWindows()
+        if BrowserService.isChromium(id), bridgeIDs[id] != nil { loadBrowserTargets() }
+    }
     func selectApp(_ id: String) {
         selectedAppID = id; appChanged(); optionSearch = ""; step = advancedMode ? "advanced" : "options"
         if chromium, bridgeIDs[id] != nil { loadBrowserTargets() }

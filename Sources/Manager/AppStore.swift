@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 @MainActor @Observable
 final class AppStore {
-    var page = "文件类型"
+    var page = "首页"
     var rows: [FileTypeRow] = []
     var apps: [AppInfo] = []
     var selected = Set<String>()
@@ -28,6 +28,8 @@ final class AppStore {
     var busy = false
     var stop = false
     var restoring = false
+    var receiverStatus = ReceiverService.status()
+    var receiverBusy = false
     private var stateReadable = true
     let scanner = AppScanner()
     let descriptions = ExtensionDescriptionDB()
@@ -78,6 +80,32 @@ final class AppStore {
     func persist() {
         guard stateReadable else { return }
         do { try StateFiles.write(state) } catch { self.error = error.localizedDescription }
+    }
+    func refreshReceiverStatus() { receiverStatus = ReceiverService.status() }
+    func ensureReceiverRunning() async {
+        refreshReceiverStatus()
+        if receiverStatus != .running { await startReceiver() }
+    }
+    func startReceiver() async {
+        guard !receiverBusy else { return }
+        receiverBusy = true; receiverStatus = .starting
+        defer { receiverBusy = false }
+        receiverStatus = await ReceiverService.start()
+        status = "Receiver：\(receiverStatus.label)"
+    }
+    func stopReceiver() async {
+        guard !receiverBusy else { return }
+        receiverBusy = true; receiverStatus = .stopping
+        defer { receiverBusy = false }
+        receiverStatus = await ReceiverService.stop()
+        status = "Receiver：\(receiverStatus.label)"
+    }
+    func restartReceiver() async {
+        guard !receiverBusy else { return }
+        receiverBusy = true; receiverStatus = .stopping
+        defer { receiverBusy = false }
+        receiverStatus = await ReceiverService.restart()
+        status = "Receiver：\(receiverStatus.label)"
     }
     func prepare(_ exts: [String], target: String) {
         restoring = false

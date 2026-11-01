@@ -58,7 +58,7 @@ struct PreferencesView: View {
             }
             Section("菜单栏图标") {
                 Label("自动显示", systemImage: "menubar.arrow.up.rectangle")
-                Text("菜单栏图标不单独配置：常驻后台开启且管理窗口关闭时显示，打开管理窗口后自动隐藏。")
+                Text("菜单栏图标不单独配置：常驻后台开启时保持显示，主程序和 Receiver 的状态可从菜单栏进入首页查看。")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

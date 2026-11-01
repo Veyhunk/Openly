@@ -182,9 +182,16 @@ struct RouteView: View {
 
     var advancedLayout: some View {
         VStack(spacing: 0) {
+            let missingPermissions = missingAdvancedPermissions
+            if !missingPermissions.isEmpty { PermissionBanner(permissions: missingPermissions).padding(.horizontal, 20).padding(.top, 10) }
             HStack(spacing: 12) {
                 TextField("搜索应用、窗口或打开方式", text: $model.search)
                     .textFieldStyle(.roundedBorder).focused($focusedTarget, equals: .search)
+                if model.candidates.contains(where: { BrowserService.isChromium($0.id) }) {
+                    Button { model.refreshSelectedTarget() } label: { Label("刷新", systemImage: "arrow.clockwise") }
+                        .buttonStyle(.bordered)
+                        .help("刷新浏览器个人资料和窗口权限状态")
+                }
                 Picker("筛选应用", selection: $model.onlyCompatible) { Text("推荐").tag(true); Text("全部").tag(false) }
                     .pickerStyle(.segmented).frame(width: 150)
             }.padding(.horizontal, 20).padding(.vertical, 10)
@@ -227,6 +234,21 @@ struct RouteView: View {
 
     var optionGrid: some View {
         VStack(spacing: 0) {
+            let _ = model.permissionRefreshToken
+            if let app = model.selectedApp {
+                let missingPermissions = OpenlyPermissionService.missing(for: app.id)
+                if !missingPermissions.isEmpty { PermissionBanner(permissions: missingPermissions).padding(.horizontal, 22).padding(.top, 12) }
+            }
+            HStack(spacing: 10) {
+                TextField("搜索打开方式、个人资料或窗口", text: $model.optionSearch)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedTarget, equals: .search)
+                Button { model.refreshSelectedTarget() } label: { Label("刷新", systemImage: "arrow.clockwise") }
+                    .buttonStyle(.bordered)
+                    .help("刷新个人资料、窗口和权限状态")
+                    .accessibilityLabel("刷新打开方式和权限状态")
+            }
+            .padding(.horizontal, 22).padding(.top, 12)
             ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 20) {
                     if model.selectedApp == nil {
@@ -265,7 +287,7 @@ struct RouteView: View {
                         }
                     }
                     if model.loadingTargets { HStack { ProgressView().controlSize(.small); Text("正在读取已有窗口和标签组，其他选项可直接使用。").foregroundStyle(.secondary) } }
-                    if !WindowAccess.trusted { Button("授权后显示更多已有窗口") { WindowAccess.openSettings() } }
+                    if !WindowAccess.trusted { Button("打开权限设置") { OpenlyPermissionService.openManagerPermissionPage() } }
                     if model.chromium {
                         let id = model.selectedAppID ?? ""
                         Text(BrowserBridge.connectionHint(appID: id, extensionID: model.bridgeIDs[id])).font(.callout).foregroundStyle(.secondary)
@@ -279,6 +301,13 @@ struct RouteView: View {
                 .padding(.horizontal, 22).padding(.bottom, 22)
             }
         }
+    }
+
+    var missingAdvancedPermissions: [OpenlyPermissionKind] {
+        var result: [OpenlyPermissionKind] = []
+        if model.candidates.contains(where: { BrowserService.isChromium($0.id) }), OpenlyPermissionService.state(for: .fullDiskAccess) == .missing { result.append(.fullDiskAccess) }
+        if OpenlyPermissionService.state(for: .accessibility) == .missing { result.append(.accessibility) }
+        return result
     }
 
     var footer: some View {

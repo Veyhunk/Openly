@@ -38,11 +38,13 @@ struct OpenlyMain {
         installMenus()
         configureStatusItem()
         if !isReceiver {
+            Task { _ = await ReceiverService.start() }
             if !OpenlyPreferences.consumeManagerBackgroundRequest() { showManager() }
             else { applyActivationPolicy(); configureStatusItem() }
         }
         else { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            guard let self, !self.lightModeEnabled, self.routeModels.isEmpty else { return }
+            guard let self, !self.lightModeEnabled, self.routeModels.isEmpty,
+                  NSRunningApplication.runningApplications(withBundleIdentifier: RoutingRules.managerID).isEmpty else { return }
             NSApp.terminate(nil)
         } }
         if isReceiver { bootstrapManagerIfNeeded() }
@@ -54,6 +56,7 @@ struct OpenlyMain {
     func application(_ application: NSApplication, open urls: [URL]) {
         let valid = urls.filter { $0.isFileURL || ["http", "https"].contains($0.scheme?.lowercased() ?? "") }
         guard !valid.isEmpty else { return }
+        if isReceiver { OpenlyPreferences.recordReceiverAccessibility(WindowAccess.trusted) }
         if isReceiver { bootstrapManagerIfNeeded() }
         guard OpenlyPreferences.takeoverEnabled else {
             Task { await openOriginal(valid) }
@@ -82,13 +85,14 @@ struct OpenlyMain {
         if managerWindow == nil {
             let store = AppStore(); self.store = store; let window = makeWindow(title: "Openly", size: NSSize(width: 1120, height: 760)); window.minSize = NSSize(width: 880, height: 600); window.contentView = NSHostingView(rootView: ManagerView(store: store)); window.delegate = self; managerWindow = window
         }
+        if let requestedPage = OpenlyPreferences.consumeManagerPageRequest() { store?.page = requestedPage }
         applyActivationPolicy()
         configureStatusItem()
         managerWindow?.makeKeyAndOrderFront(nil); NSApp.activate()
     }
     func configureStatusItem() {
         guard !isReceiver else { return }
-        if residentBackground && managerWindow == nil {
+        if residentBackground {
             if statusItem == nil { statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
             statusItem?.button?.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Openly")
             let menu = NSMenu()
@@ -157,12 +161,7 @@ struct OpenlyMain {
     @objc func openFromStatusItem() { showManager() }
     @objc func quitOpenly() {
         shuttingDown = true
-        for bundleID in [RoutingRules.receiverID, RoutingRules.batchReceiverID] {
-            for process in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
-                process.terminate()
-                if !process.isTerminated { process.forceTerminate() }
-            }
-        }
+        ReceiverService.stopImmediately()
         for pattern in ["Openly Receiver.app/Contents/MacOS/Openly", "Library/Application Support/Openly/Receiver.app/Contents/MacOS/Openly"] {
             let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill"); process.arguments = ["-TERM", "-f", pattern]
             try? process.run(); process.waitUntilExit()

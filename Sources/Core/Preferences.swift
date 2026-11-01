@@ -6,7 +6,7 @@ enum OpenlyPreferences {
     private static let defaults: UserDefaults = {
         let shared = UserDefaults(suiteName: "com.openly.app") ?? UserDefaults.standard
         let standard = UserDefaults.standard
-        for key in ["Openly.dockIconVisible", "Openly.residentBackground", "Openly.autoOpenSingleOption", "Openly.lightweightDelaySeconds", "Openly.advancedRoutingMode"] where shared.object(forKey: key) == nil {
+        for key in ["Openly.dockIconVisible", "Openly.residentBackground", "Openly.autoOpenSingleOption", "Openly.lightweightDelaySeconds", "Openly.advancedRoutingMode", "Openly.takeoverEnabled", "Openly.closeWindowBehavior"] where shared.object(forKey: key) == nil {
             if let value = standard.object(forKey: key) { shared.set(value, forKey: key) }
         }
         return shared
@@ -53,6 +53,17 @@ enum OpenlyPreferences {
         if requested { defaults.set(false, forKey: "Openly.managerBackgroundRequested") }
         return requested
     }
+    static func requestManagerPage(_ page: String) { defaults.set(page, forKey: "Openly.managerPageRequested") }
+    static func consumeManagerPageRequest() -> String? {
+        let page = defaults.string(forKey: "Openly.managerPageRequested")
+        defaults.removeObject(forKey: "Openly.managerPageRequested")
+        return page
+    }
+    static var receiverAccessibilityTrusted: Bool? {
+        guard defaults.object(forKey: "Openly.receiverAccessibilityTrusted") != nil else { return nil }
+        return defaults.bool(forKey: "Openly.receiverAccessibilityTrusted")
+    }
+    static func recordReceiverAccessibility(_ trusted: Bool) { defaults.set(trusted, forKey: "Openly.receiverAccessibilityTrusted") }
     static var lightweightModeEnabled: Bool { residentBackground }
     static func value(_ key: String, default fallback: Bool) -> Bool {
         _ = defaults.synchronize()

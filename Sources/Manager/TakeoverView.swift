@@ -48,9 +48,10 @@ struct TakeoverView: View {
             }
             GroupBox("应用打开能力") {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack { Text("窗口选择"); Spacer(); Text(WindowAccess.trusted ? "管理程序已获辅助功能权限" : "管理程序未获辅助功能权限").foregroundStyle(WindowAccess.trusted ? .green : .secondary); Button("前往系统设置") { WindowAccess.openSettings() } }
-                    Text("权限按应用身份分别保存。请在列表中授权 Openly Receiver；它位于 Openly.app/Contents/Helpers/。授权后重新打开接管窗口，窗口数量会显示在高级卡片中。").font(.caption).foregroundStyle(.secondary)
+                    HStack { Text("窗口选择"); Spacer(); Text(WindowAccess.trusted ? "管理程序已获辅助功能权限" : "管理程序未获辅助功能权限").foregroundStyle(WindowAccess.trusted ? .green : .secondary); Button("权限设置") { OpenlyPermissionService.openManagerPermissionPage() } }
+                    Text("权限按应用身份分别保存。管理程序和 Openly Receiver 都需要在系统设置中分别授权；授权后重新打开接管窗口，窗口数量会显示在高级卡片中。").font(.caption).foregroundStyle(.secondary)
                     HStack { Image(systemName: WindowAccess.trusted ? "checkmark.circle.fill" : "info.circle"); Text(WindowAccess.receiverStatusText).font(.caption) }
+                    HStack { Image(systemName: OpenlyPermissionService.state(for: .fullDiskAccess) == .granted ? "checkmark.circle.fill" : "info.circle"); Text("浏览器个人资料读取：\(OpenlyPermissionService.state(for: .fullDiskAccess).label)").font(.caption).foregroundStyle(.secondary) }
                     Divider()
                     Text("Chrome / Edge 的窗口与标签组通过每个个人资料中安装的 Openly 浏览器扩展连接。").foregroundStyle(.secondary)
                     if let configured = store.state.bridgeIDs[bridgeApp] { Text(BrowserBridge.connectionHint(appID: bridgeApp, extensionID: configured)).font(.caption).foregroundStyle(.secondary) }

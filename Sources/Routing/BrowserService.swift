@@ -27,24 +27,55 @@ struct BrowserSnapshot: Codable, Sendable {
     var groups: [BrowserGroup]
 }
 
+enum BrowserProfileAccessState: Equatable, Sendable {
+    case available
+    case missingFile
+    case denied
+    case invalid
+}
+
+struct BrowserProfileReadResult: Sendable {
+    let profiles: [BrowserProfile]
+    let state: BrowserProfileAccessState
+}
+
 enum BrowserService {
     static func isChromium(_ id: String) -> Bool { ["com.google.Chrome", "com.microsoft.edgemac", "org.chromium.Chromium", "com.google.Chrome.forTesting"].contains(id) }
     static func dataRoot(_ id: String) -> URL {
         let sub = id == "com.microsoft.edgemac" ? "Microsoft Edge" : id == "org.chromium.Chromium" ? "Chromium" : id == "com.google.Chrome.forTesting" ? "Google/Chrome for Testing" : "Google/Chrome"
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/" + sub)
     }
-    static func profiles(_ id: String) -> [BrowserProfile] {
+    static func profileReadResult(_ id: String) -> BrowserProfileReadResult {
+        let fallback = [BrowserProfile(id: "Default", name: "默认个人资料", account: nil)]
         let url = dataRoot(id).appendingPathComponent("Local State")
-        guard let data = try? Data(contentsOf: url), let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let profile = json["profile"] as? [String: Any], let rawCache = profile["info_cache"] as? [String: Any] else { return [.init(id: "Default", name: "默认个人资料", account: nil)] }
-        return rawCache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.compactMap { id in
+        guard FileManager.default.fileExists(atPath: url.path) else { return .init(profiles: fallback, state: .missingFile) }
+        let data: Data
+        do { data = try Data(contentsOf: url) }
+        catch {
+            let nsError = error as NSError
+            let denied = nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoPermissionError
+            return .init(profiles: fallback, state: denied ? .denied : .invalid)
+        }
+        return parseProfiles(data: data)
+    }
+    static func parseProfiles(data: Data) -> BrowserProfileReadResult {
+        let fallback = [BrowserProfile(id: "Default", name: "默认个人资料", account: nil)]
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let profile = json["profile"] as? [String: Any], let rawCache = profile["info_cache"] as? [String: Any] else {
+            return .init(profiles: fallback, state: .invalid)
+        }
+        let profiles: [BrowserProfile] = rawCache.keys.sorted().filter { !$0.contains("/") && !$0.contains("..") }.compactMap { id in
             guard let info = rawCache[id] as? [String: Any] else { return nil }
             let name = info["name"] as? String ?? id
             let account = (info["user_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? (info["gaia_name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             return .init(id: id, name: name, account: account)
         }
+        guard !profiles.isEmpty else { return .init(profiles: fallback, state: .invalid) }
+        return .init(profiles: profiles, state: .available)
     }
+    static func profiles(_ id: String) -> [BrowserProfile] { profileReadResult(id).profiles }
+    static func profileAccessState(_ id: String) -> BrowserProfileAccessState { profileReadResult(id).state }
     static func arguments(profile: String, mode: String, urls: [URL], temporaryDirectory: URL? = nil) -> [String] {
         var args: [String] = []
         if let temporaryDirectory { args += ["--user-data-dir=" + temporaryDirectory.path] }
