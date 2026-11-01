@@ -154,6 +154,7 @@ final class RouterModel {
     func loadBrowserTargets() {
         guard let app = selectedApp, let extID = bridgeIDs[app.id] else { error = "请先在打开接管页连接扩展"; return }
         targetTask?.cancel(); generation += 1; let version = generation; let profiles = profiles
+        OpenlyLog.browser.info("browser list start appID=\(app.id, privacy: .public) profiles=\(profiles.count, privacy: .public)")
         loadingTargets = true; error = nil; targetErrors = [:]
         targetTask = Task {
             for p in profiles {
@@ -163,9 +164,11 @@ final class RouterModel {
                     let value = try JSONDecoder().decode(BrowserSnapshot.self, from: data)
                     guard generation == version else { return }
                     browserSnapshots[p.id] = value
+                    OpenlyLog.browser.info("browser list result appID=\(app.id, privacy: .public) profile=\(p.id, privacy: .public) windows=\(value.windows.count, privacy: .public) groups=\(value.groups.count, privacy: .public) windowTitles=\(value.windows.map(\.title).joined(separator: " | "), privacy: .public)")
                 } catch {
                     guard generation == version else { return }
                     targetErrors[p.name] = error.localizedDescription
+                    OpenlyLog.browser.error("browser list failed appID=\(app.id, privacy: .public) profile=\(p.id, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 }
                 if !busy { onFailure?() }
             }

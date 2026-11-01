@@ -13,6 +13,7 @@
 - 进行窗口聚焦、Receiver 接管、Chrome/Edge Profile、浏览器已有窗口或标签组验收前，先提示用户确认：主程序 Openly、Openly Receiver 的辅助功能权限，以及 Chromium Profile 所需的完全磁盘访问权限。
 - 用户未完成手动授权时，只执行构建、静态检查和不依赖 TCC 的自动化测试，并明确说明窗口/浏览器验收未完成。
 - 每次安装完成都输出人工权限检查提示，不能把 Terminal 或其他进程的权限状态当成 Openly 的权限状态。
+- 窗口或浏览器列表异常时，先在干净重启后收集 `log show --last 5m --style compact --predicate 'subsystem == "com.openly.app" && (category == "windows" || category == "browser")'`，再根据 AX 错误码、PID、返回数量和标题判断；不能只凭界面卡片猜测数据来源。
 
 ## 窗口和浏览器数据边界
 
@@ -26,3 +27,5 @@
 - SwiftUI 路由选择器使用 `FocusState`、`focusScope`、`focusSection`、`onMoveCommand` 和绑定到实际控件的 `onKeyPress`。
 - 方向键、Tab 和回车必须作用于真实可聚焦的 TextField 或 Button；不要使用无法确认焦点归属的全局事件拦截器代替 SwiftUI 焦点树。
 - 改动后至少运行 `swift build`、`bash scripts/test.sh` 和 `git diff --check`；TCC 相关验收需在用户完成手动授权后进行。
+- 窗口排查日志使用 `com.openly.app` 的 `windows` 分类，浏览器桥接日志使用 `browser` 分类；日志只记录排查所需的应用、PID、数量、标题和错误码。
+- 新增 Swift 源文件后必须同步检查 `Package.swift` 和显式源文件测试入口（当前为 `scripts/test.sh`），避免主构建通过但自动测试漏编译新代码。

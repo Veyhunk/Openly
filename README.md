@@ -64,6 +64,14 @@ swiftc -parse-as-library scripts/benchmark.swift -o .build/checks/benchmark
 
 `test.sh` 直接编译生产代码并执行断言，兼容缺少 XCTest 模块的 Command Line Tools 环境。测试失败返回非零退出码。浏览器扩展测试覆盖窗口枚举、标签组路由、目标失效、部分失败与无效请求；Native Messaging 测试覆盖一次性令牌、重放拒绝和过期请求。
 
+窗口或浏览器列表异常时，先完全退出并重启 Openly，再查看日志：
+
+```bash
+log show --last 5m --style compact --predicate 'subsystem == "com.openly.app" && (category == "windows" || category == "browser")'
+```
+
+`windows` 日志记录 AX 权限状态、目标 PID、错误码、返回数量、标题和子角色；`browser` 日志记录每个 Profile 返回的窗口与标签组数量及窗口标题。
+
 [验证记录](docs/implementation-validation.md) 区分自动化、实机与待验证项目。
 
 ## 发布打包

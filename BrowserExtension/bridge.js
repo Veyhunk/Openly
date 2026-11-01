@@ -16,9 +16,10 @@
       result = {
         windows: windows.filter(w => w.tabs.some(t => t.id !== own.id)).map(w => {
           const tabs = w.tabs.filter(t => t.id !== own.id);
-          return { id: w.id, title: (tabs.find(t => t.active) || tabs[0])?.title || '未命名窗口', incognito: w.incognito, count: tabs.length };
-        }),
-        groups: groups.map(g => ({ id: g.id, windowId: g.windowId, title: g.title || '未命名组', color: g.color }))
+          const title = (tabs.find(t => t.active) || tabs.find(t => t.title?.trim()))?.title?.trim() || '';
+          return title ? { id: w.id, title, incognito: w.incognito, count: tabs.length } : null;
+        }).filter(Boolean),
+        groups: groups.filter(g => g.title?.trim()).map(g => ({ id: g.id, windowId: g.windowId, title: g.title.trim(), color: g.color }))
       };
     } else if (request.action === 'open') {
       const window = await chrome.windows.get(request.windowId);

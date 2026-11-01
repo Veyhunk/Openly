@@ -18,27 +18,43 @@ struct AppWindow: Identifiable {
     static func openSettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     static func windows(appID: String) -> [AppWindow] {
         var result: [AppWindow] = []
-        for running in NSRunningApplication.runningApplications(withBundleIdentifier: appID) {
+        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: appID)
+        OpenlyLog.windows.info("AX query start appID=\(appID, privacy: .public) trusted=\(trusted, privacy: .public) processes=\(runningApps.count, privacy: .public)")
+        for running in runningApps {
             let app = AXUIElementCreateApplication(running.processIdentifier)
             AXUIElementSetMessagingTimeout(app, 2.0)
             var value: CFTypeRef?
             var error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+            if error != .success { OpenlyLog.windows.error("AX windows attribute failed appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) error=\(error.rawValue, privacy: .public)") }
             if error == .cannotComplete {
                 AXUIElementSetMessagingTimeout(app, 2.0)
                 error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+                OpenlyLog.windows.info("AX windows retry appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) error=\(error.rawValue, privacy: .public)")
             }
             guard error == .success, let windows = value as? [AXUIElement] else { continue }
+            OpenlyLog.windows.info("AX windows attribute returned appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) count=\(windows.count, privacy: .public)")
             for window in windows {
-                var title: CFTypeRef?
+                var title: CFTypeRef?, subrole: CFTypeRef?
                 // kAXWindowsAttribute is already defined by Apple as the
                 // application's window collection. Do not require a specific
                 // subrole: Electron apps may omit AXStandardWindowSubrole on
                 // secondary document windows.
-                AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
-                guard let title = title as? String, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-                result.append(.init(id: result.count, title: title, element: window, pid: running.processIdentifier))
+                let titleError = AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+                let subroleError = AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole)
+                guard let title = title as? String, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    OpenlyLog.windows.debug("AX window skipped appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) titleError=\(titleError.rawValue, privacy: .public) subroleError=\(subroleError.rawValue, privacy: .public)")
+                    continue
+                }
+                let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard normalizedTitle.range(of: #"^(?:未命名窗口|窗口|.+窗口)\s*\d+$"#, options: .regularExpression) == nil else {
+                    OpenlyLog.windows.info("AX window skipped ambiguous title appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) title=\(normalizedTitle, privacy: .public)")
+                    continue
+                }
+                OpenlyLog.windows.info("AX window accepted appID=\(appID, privacy: .public) pid=\(running.processIdentifier, privacy: .public) title=\(normalizedTitle, privacy: .public) subrole=\(String(describing: subrole), privacy: .public)")
+                result.append(.init(id: result.count, title: normalizedTitle, element: window, pid: running.processIdentifier))
             }
         }
+        OpenlyLog.windows.info("AX query result appID=\(appID, privacy: .public) count=\(result.count, privacy: .public) titles=\(result.map(\.title).joined(separator: " | "), privacy: .public)")
         return result
     }
     static func newWindowAction(appID: String) -> AXUIElement? {

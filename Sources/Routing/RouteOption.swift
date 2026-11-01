@@ -39,9 +39,10 @@ extension RouterModel {
                 }
                 if let snapshot = appSnapshots[p.id] {
                     for window in snapshot.windows {
+                        guard !window.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                         options.append(.init(id: "\(p.id):w\(window.id)", section: section, title: window.title, detail: "已有\(window.incognito ? "无痕" : "")窗口 · \(window.count) 个标签", symbol: "macwindow", mode: "browserWindow", profile: p.id, browserWindowID: window.id))
-                        for group in snapshot.groups where group.windowId == window.id {
-                            options.append(.init(id: "\(p.id):g\(group.id)", section: section, title: group.title, detail: "标签组 · \(window.title) · \(group.color)", symbol: "rectangle.stack", mode: "browserWindow", profile: p.id, browserWindowID: window.id, groupID: group.id))
+                        for group in snapshot.groups where group.windowId == window.id && !group.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            options.append(.init(id: "\(p.id):g\(group.id)", section: "标签组 · \(p.label)", title: group.title, detail: "属于窗口：\(window.title) · \(group.color)", symbol: "rectangle.stack", mode: "browserWindow", profile: p.id, browserWindowID: window.id, groupID: group.id))
                         }
                     }
                 }

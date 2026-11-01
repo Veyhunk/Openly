@@ -351,6 +351,10 @@ struct RouteView: View {
                     }
                     if model.loadingTargets { HStack { ProgressView().controlSize(.small); Text("正在读取已有窗口和标签组，其他选项可直接使用。").foregroundStyle(.secondary) } }
                     if !WindowAccess.trusted { Button("打开权限设置") { OpenlyPermissionService.openManagerPermissionPage() } }
+                    if !model.chromium && model.windows.isEmpty && WindowAccess.trusted {
+                        Text("未读取到目标应用通过辅助功能公开的已有窗口，请刷新后重试。系统未返回可执行的窗口对象，因此不会显示序号占位窗口。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if model.chromium {
                         let id = model.selectedAppID ?? ""
                         Text(BrowserBridge.connectionHint(appID: id, extensionID: model.bridgeIDs[id])).font(.callout).foregroundStyle(.secondary)
