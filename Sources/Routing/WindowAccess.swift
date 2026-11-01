@@ -44,7 +44,7 @@ struct AppWindow: Identifiable {
                   let app = NSRunningApplication(processIdentifier: pid_t(pidNumber.intValue)),
                   Bundle(url: app.bundleURL ?? URL(fileURLWithPath: ""))?.bundleIdentifier == appID,
                   (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { continue }
-            let title = (info[kCGWindowName as String] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? app.localizedName ?? "未命名窗口"
+            let title = (info[kCGWindowName as String] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "\(app.localizedName ?? "应用") 窗口 \(result.count + 1)"
             result.append(.init(id: result.count, title: title, element: AXUIElementCreateApplication(app.processIdentifier), pid: app.processIdentifier, exact: false))
         }
         return result
