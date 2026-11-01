@@ -24,7 +24,6 @@ extension RouterModel {
         let appVSCode = app.id == "com.microsoft.VSCode" || app.id == "com.microsoft.VSCodeInsiders"
         let appProfiles = app.id == selectedAppID ? profiles : (appChromium ? BrowserService.profiles(app.id) : [])
         let appSnapshots = app.id == selectedAppID ? browserSnapshots : [:]
-        let appWindows = app.id == selectedAppID ? windows : WindowAccess.windows(appID: app.id)
         let appNewWindow = app.id == selectedAppID ? genericNewWindow : (!appChromium && !appVSCode && WindowAccess.newWindowAction(appID: app.id) != nil)
         if appChromium {
             for p in appProfiles {
@@ -52,7 +51,8 @@ extension RouterModel {
             options.append(.init(id: "\(app.id):default", section: "打开方式", title: appVSCode ? "最近活动窗口" : "默认打开", detail: "交给 \(app.name) 打开", symbol: "arrow.up.forward.app", mode: "default"))
             if appVSCode || appNewWindow { options.append(.init(id: "\(app.id):new", section: "打开方式", title: "新窗口", detail: "在新窗口中打开", symbol: "macwindow.badge.plus", mode: "new")) }
         }
-        if !appChromium || appSnapshots.values.allSatisfy({ $0.windows.isEmpty }) {
+        if !appChromium {
+            let appWindows = app.id == selectedAppID ? windows : WindowAccess.windows(appID: app.id)
             for window in appWindows {
                 options.append(.init(id: "\(app.id):ax:\(window.id)", section: "已有窗口", title: window.title, detail: appVSCode ? "切换到此窗口并打开" : "兼容打开 · 应用决定最终位置", symbol: "macwindow", mode: "window", windowID: window.id))
             }

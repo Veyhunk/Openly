@@ -152,7 +152,12 @@ final class RouterModel {
         targetTask?.cancel(); generation += 1; loadingTargets = false; step = "apps"; error = nil
     }
     func loadBrowserTargets() {
-        guard let app = selectedApp, let extID = bridgeIDs[app.id] else { error = "请先在打开接管页连接扩展"; return }
+        guard let app = selectedApp else { return }
+        guard let extID = bridgeIDs[app.id] else {
+            OpenlyLog.browser.info("browser list skipped appID=\(app.id, privacy: .public) reason=bridge_id_missing")
+            error = "请先在打开接管页连接扩展"
+            return
+        }
         targetTask?.cancel(); generation += 1; let version = generation; let profiles = profiles
         OpenlyLog.browser.info("browser list start appID=\(app.id, privacy: .public) profiles=\(profiles.count, privacy: .public)")
         loadingTargets = true; error = nil; targetErrors = [:]
