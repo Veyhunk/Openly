@@ -1,11 +1,13 @@
 import AppKit
 import ApplicationServices
+import CoreGraphics
 
 struct AppWindow: Identifiable {
     let id: Int
     let title: String
     let element: AXUIElement
     let pid: pid_t
+    let exact: Bool
 }
 @MainActor enum WindowAccess {
     static var trusted: Bool { AXIsProcessTrusted() }
@@ -17,7 +19,6 @@ struct AppWindow: Identifiable {
     }
     static func openSettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!) }
     static func windows(appID: String) -> [AppWindow] {
-        guard trusted else { return [] }
         var result: [AppWindow] = []
         for running in NSRunningApplication.runningApplications(withBundleIdentifier: appID) {
             let app = AXUIElementCreateApplication(running.processIdentifier)
@@ -29,8 +30,22 @@ struct AppWindow: Identifiable {
                 AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &role)
                 guard role as? String == kAXStandardWindowSubrole else { continue }
                 AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
-                result.append(.init(id: result.count, title: (title as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "未命名窗口 \(result.count + 1)", element: window, pid: running.processIdentifier))
+                result.append(.init(id: result.count, title: (title as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "未命名窗口 \(result.count + 1)", element: window, pid: running.processIdentifier, exact: true))
             }
+        }
+        if result.isEmpty { result = quartzWindows(appID: appID) }
+        return result
+    }
+    static func quartzWindows(appID: String) -> [AppWindow] {
+        var result: [AppWindow] = []
+        let infos = (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]) ?? []
+        for info in infos {
+            guard let pidNumber = info[kCGWindowOwnerPID as String] as? NSNumber,
+                  let app = NSRunningApplication(processIdentifier: pid_t(pidNumber.intValue)),
+                  Bundle(url: app.bundleURL ?? URL(fileURLWithPath: ""))?.bundleIdentifier == appID,
+                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { continue }
+            let title = (info[kCGWindowName as String] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? app.localizedName ?? "未命名窗口"
+            result.append(.init(id: result.count, title: title, element: AXUIElementCreateApplication(app.processIdentifier), pid: app.processIdentifier, exact: false))
         }
         return result
     }
@@ -71,6 +86,10 @@ struct AppWindow: Identifiable {
     static func focus(_ window: AppWindow) async throws {
         guard trusted else { throw OpenlyError("请先授予辅助功能权限") }
         guard let app = NSRunningApplication(processIdentifier: window.pid), !app.isTerminated else { throw OpenlyError("目标应用已退出") }
+        if !window.exact {
+            app.activate()
+            return
+        }
         AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         app.activate()
         let raised = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
