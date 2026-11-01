@@ -32,8 +32,21 @@ struct PermissionSettingsView: View {
         .navigationTitle("权限设置")
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             guard let window = notification.object as? NSWindow, window === NSApp.keyWindow else { return }
-            refreshToken += 1
+            refreshReceiverPermission()
         }
+        .task { await refreshReceiverPermissionAsync() }
+    }
+
+    func refreshReceiverPermission() {
+        OpenlyPermissionService.requestReceiverAccessibilityProbe()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { refreshToken += 1 }
+    }
+
+    func refreshReceiverPermissionAsync() async {
+        _ = await ReceiverService.start()
+        OpenlyPermissionService.requestReceiverAccessibilityProbe()
+        try? await Task.sleep(for: .milliseconds(300))
+        refreshToken += 1
     }
 }
 

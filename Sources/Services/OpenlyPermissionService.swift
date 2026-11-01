@@ -74,6 +74,10 @@ enum OpenlyPermissionService {
         NSWorkspace.shared.activateFileViewerSelecting([receiver])
     }
 
+    static func requestReceiverAccessibilityProbe() {
+        DistributedNotificationCenter.default.post(name: OpenlyPreferences.receiverAccessibilityProbe, object: nil)
+    }
+
     static func openManagerPermissionPage() {
         OpenlyPreferences.requestManagerPage("权限设置")
         guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: RoutingRules.managerID) else { return }

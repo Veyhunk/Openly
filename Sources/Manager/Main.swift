@@ -28,6 +28,9 @@ struct OpenlyMain {
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(isReceiver || !OpenlyPreferences.dockIconVisible ? .accessory : .regular)
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesChanged), name: OpenlyPreferences.didChange, object: nil)
+        if isReceiver {
+            DistributedNotificationCenter.default.addObserver(self, selector: #selector(probeReceiverAccessibility), name: OpenlyPreferences.receiverAccessibilityProbe, object: nil)
+        }
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURL(_:reply:)), forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
     }
     @objc func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
@@ -37,6 +40,7 @@ struct OpenlyMain {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
         configureStatusItem()
+        if isReceiver { recordReceiverAccessibility() }
         if !isReceiver {
             Task { _ = await ReceiverService.start() }
             if !OpenlyPreferences.consumeManagerBackgroundRequest() { showManager() }
@@ -49,6 +53,8 @@ struct OpenlyMain {
         } }
         if isReceiver { bootstrapManagerIfNeeded() }
     }
+    @objc func probeReceiverAccessibility() { if isReceiver { recordReceiverAccessibility() } }
+    func recordReceiverAccessibility() { OpenlyPreferences.recordReceiverAccessibility(WindowAccess.trusted) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !isReceiver { showManager() } else { routeWindows.keys.forEach { showChooser($0) } }
         return true

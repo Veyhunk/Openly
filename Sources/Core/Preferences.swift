@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 enum OpenlyPreferences {
     static let didChange = Notification.Name("Openly.preferencesDidChange")
+    static let receiverAccessibilityProbe = Notification.Name("Openly.receiverAccessibilityProbe")
     private static let defaults: UserDefaults = {
         let shared = UserDefaults(suiteName: "com.openly.app") ?? UserDefaults.standard
         let standard = UserDefaults.standard
