@@ -6,7 +6,7 @@ enum RouteFocusTarget: Hashable { case search, defaultOpen, app(String), option(
 struct RouteView: View {
     @Bindable var model: RouterModel
     @NativeFocus private var focusedTarget: RouteFocusTarget?
-    @NativeState private var keyboardMonitor = RouteKeyboardMonitor()
+    @Namespace private var routeFocusScope
     private let appColumns = Array(repeating: GridItem(.flexible(minimum: 106, maximum: 160), spacing: 8), count: 5)
     private let optionColumns = [GridItem(.adaptive(minimum: 220, maximum: 340), spacing: 10)]
 
@@ -20,21 +20,11 @@ struct RouteView: View {
             footer
         }
         .frame(minWidth: model.advancedMode ? 1040 : 680, idealWidth: model.advancedMode ? 1080 : 760, minHeight: 520, idealHeight: 520)
-        .onAppear { focusInitial(); installKeyboardMonitor(); PerformanceProbe.visible() }
-        .onDisappear { keyboardMonitor.stop() }
+        .focusScope(routeFocusScope)
+        .onAppear { focusInitial(); PerformanceProbe.visible() }
         .onChange(of: model.focusRequest) { focusInitial() }
         .onChange(of: model.step) { focusInitial() }
         .onExitCommand { if model.step == "apps" { model.onDismiss?() } else { model.backToApps() } }
-        .onMoveCommand { direction in moveFocus(direction) }
-        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: .down) { press in
-            moveFocus(for: press.key) ? .handled : .ignored
-        }
-        .onKeyPress(.tab, phases: .down) { press in
-            moveTab(reverse: press.modifiers.contains(.shift)) ? .handled : .ignored
-        }
-        .onKeyPress(.return, phases: .down) { _ in
-            activateFocusedOption() ? .handled : .ignored
-        }
         .background {
             Button("") { focusedTarget = .search }
                 .keyboardShortcut("f", modifiers: [.command])
@@ -127,101 +117,28 @@ struct RouteView: View {
     func moveFocus(_ direction: MoveCommandDirection) {
         let keys = navigationKeys
         guard !keys.isEmpty else { return }
-        guard let current = currentFocusKey($focusedTarget), let index = keys.firstIndex(of: current) else { return }
+        guard let current = currentFocusKey($focusedTarget), let index = keys.firstIndex(of: current) else {
+            setFocus(keys[0], using: $focusedTarget)
+            return
+        }
         let next: Int
         switch direction {
         case .left, .up: next = max(0, index - 1)
-        case .right, .down: next = min(optionFocusKeys.count - 1, index + 1)
+        case .right, .down: next = min(keys.count - 1, index + 1)
         @unknown default: return
         }
         setFocus(keys[next], using: $focusedTarget)
     }
-    func moveFocus(using focus: NativeFocus<RouteFocusTarget?>.Binding, _ direction: MoveCommandDirection) -> Bool {
+    func moveTab(reverse: Bool) -> KeyPress.Result {
         let keys = navigationKeys
-        guard !keys.isEmpty else { return false }
-        guard let current = currentFocusKey(focus), let index = keys.firstIndex(of: current) else { return false }
-        let next: Int
-        switch direction {
-        case .left, .up: next = max(0, index - 1)
-        case .right, .down: next = min(optionFocusKeys.count - 1, index + 1)
-        @unknown default: return false
-        }
-        setFocus(keys[next], using: focus)
-        return true
-    }
-    func moveFocus(for key: KeyEquivalent) -> Bool {
-        let direction: MoveCommandDirection?
-        switch key {
-        case .leftArrow: direction = .left
-        case .rightArrow: direction = .right
-        case .upArrow: direction = .up
-        case .downArrow: direction = .down
-        default: direction = nil
-        }
-        guard let direction else { return false }
-        moveFocus(direction)
-        return !navigationKeys.isEmpty
-    }
-    func moveTab(reverse: Bool) -> Bool {
-        let keys = navigationKeys
-        guard !keys.isEmpty else { return false }
+        guard !keys.isEmpty else { return .ignored }
         guard let current = currentFocusKey($focusedTarget), let index = keys.firstIndex(of: current) else {
-            setFocus(reverse ? keys.last! : keys[0], using: $focusedTarget)
-            return true
+            setFocus(reverse ? keys.last! : keys.first!, using: $focusedTarget)
+            return .handled
         }
         let next = reverse ? (index == 0 ? keys.count - 1 : index - 1) : (index + 1) % keys.count
         setFocus(keys[next], using: $focusedTarget)
-        return true
-    }
-    func moveTab(using focus: NativeFocus<RouteFocusTarget?>.Binding, reverse: Bool) -> Bool {
-        let keys = navigationKeys
-        guard !keys.isEmpty else { return false }
-        guard let current = currentFocusKey(focus), let index = keys.firstIndex(of: current) else {
-            setFocus(reverse ? keys.last! : keys[0], using: focus)
-            return true
-        }
-        let next = reverse ? (index == 0 ? keys.count - 1 : index - 1) : (index + 1) % keys.count
-        setFocus(keys[next], using: focus)
-        return true
-    }
-    func activateFocusedOption() -> Bool {
-        if focusedTarget == .defaultOpen {
-            Task { await model.openUsingSystemDefault() }
-            return true
-        }
-        if case .app(let id) = focusedTarget { model.selectApp(id); return true }
-        guard case .option(let key) = focusedTarget else { return false }
-        if model.advancedMode {
-            guard let separator = key.firstIndex(of: ":") else { return false }
-            let appID = String(key[..<separator])
-            let optionID = String(key[key.index(after: separator)...])
-            guard let app = model.candidates.first(where: { $0.id == appID }), let option = model.options(for: app).first(where: { $0.id == optionID }) else { return false }
-            Task { await model.choose(option, for: app) }
-        } else if let option = model.availableOptions.first(where: { $0.id == key }) {
-            Task { await model.choose(option) }
-        } else { return false }
-        return true
-    }
-    func activateFocusedOption(using focus: NativeFocus<RouteFocusTarget?>.Binding) -> Bool {
-        let original = focusedTarget
-        focusedTarget = focus.wrappedValue
-        defer { focus.wrappedValue = focusedTarget; focusedTarget = original }
-        return activateFocusedOption()
-    }
-    func installKeyboardMonitor() {
-        let focus = $focusedTarget
-        keyboardMonitor.install { event in
-            let current = focus.wrappedValue
-            switch event.keyCode {
-            case 123: return current == nil || moveFocus(using: focus, .left)
-            case 124: return current == nil || moveFocus(using: focus, .right)
-            case 125: return current == nil || moveFocus(using: focus, .down)
-            case 126: return current == nil || moveFocus(using: focus, .up)
-            case 48: return moveTab(using: focus, reverse: event.modifierFlags.contains(.shift))
-            case 36, 76: return activateFocusedOption(using: focus)
-            default: return false
-            }
-        }
+        return .handled
     }
     func displayAddress(_ url: URL) -> String {
         url.isFileURL ? url.path : url.absoluteString
@@ -254,11 +171,14 @@ struct RouteView: View {
         .buttonStyle(.plain)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(focusedTarget == .defaultOpen ? Color.accentColor : .clear, lineWidth: 2))
         .disabled(model.busy)
         .help("使用系统默认应用 \(app.name) 打开")
         .accessibilityLabel("默认打开，使用 \(app.name)")
         .focused($focusedTarget, equals: .defaultOpen)
-        .focusable(true)
+        .onMoveCommand { moveFocus($0) }
+        .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
+        .onKeyPress(.return, phases: .down) { _ in Task { await model.openUsingSystemDefault() }; return .handled }
     }
 
     var appGrid: some View {
@@ -266,6 +186,8 @@ struct RouteView: View {
             HStack(spacing: 16) {
                 TextField("搜索应用", text: $model.search)
                     .textFieldStyle(.roundedBorder).focused($focusedTarget, equals: .search)
+                    .onMoveCommand { moveFocus($0) }
+                    .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
                     .accessibilityLabel("搜索应用名称、Bundle ID 或扩展名")
                 Picker("筛选应用", selection: $model.onlyCompatible) {
                     Text("推荐").tag(true); Text("全部").tag(false)
@@ -287,17 +209,24 @@ struct RouteView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(RoutingAppTileButtonStyle())
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(focusedTarget == .app(app.id) ? Color.accentColor : .clear, lineWidth: 2))
                         .focused($focusedTarget, equals: .app(app.id))
+                        .onMoveCommand { moveFocus($0) }
+                        .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
+                        .onKeyPress(.return, phases: .down) { _ in model.selectApp(app.id); return .handled }
                         .help(app.name)
                         .accessibilityLabel("使用 \(app.name)\(isDefault ? "，原默认应用" : "")，选择打开方式")
                     }
                 }
+                .focusSection()
                 .padding(.horizontal, 22).padding(.bottom, 20)
                 if model.candidates.isEmpty {
                     ContentUnavailableView("没有匹配的应用", systemImage: "square.grid.2x2", description: Text("可调整搜索条件，或查看全部应用。"))
                     if model.onlyCompatible { Button("查看全部应用") { model.onlyCompatible = false }.padding(.bottom, 12) }
                 }
             }
+            .focusSection()
+            .onMoveCommand { moveFocus($0) }
         }
     }
 
@@ -308,6 +237,8 @@ struct RouteView: View {
             HStack(spacing: 12) {
                 TextField("搜索应用、窗口或打开方式", text: $model.search)
                     .textFieldStyle(.roundedBorder).focused($focusedTarget, equals: .search)
+                    .onMoveCommand { moveFocus($0) }
+                    .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
                 if model.candidates.contains(where: { BrowserService.isChromium($0.id) }) {
                     Button { model.refreshSelectedTarget() } label: { Label("刷新", systemImage: "arrow.clockwise") }
                         .buttonStyle(.bordered)
@@ -335,7 +266,9 @@ struct RouteView: View {
                     }
                 }.padding(.horizontal, 8).padding(.bottom, 18)
             }
-        }.frame(minWidth: 1000, minHeight: 360)
+            .onMoveCommand { moveFocus($0) }
+        }
+        .frame(minWidth: 1000, minHeight: 360)
     }
 
     func advancedOptionButton(_ option: RouteOption, app: AppInfo) -> some View {
@@ -348,9 +281,11 @@ struct RouteView: View {
         }
         .buttonStyle(RoutingOptionButtonStyle())
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isDefault ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isDefault ? 2 : 1))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(focusedTarget == .option("\(app.id):\(option.id)") ? Color.accentColor : (isDefault ? Color.accentColor : Color.primary.opacity(0.10)), lineWidth: focusedTarget == .option("\(app.id):\(option.id)") || isDefault ? 2 : 1))
         .focused($focusedTarget, equals: .option("\(app.id):\(option.id)"))
-        .focusable(true)
+        .onMoveCommand { moveFocus($0) }
+        .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
+        .onKeyPress(.return, phases: .down) { _ in Task { await model.choose(option, for: app) }; return .handled }
         .accessibilityLabel("\(app.name)，\(option.title)，\(option.detail)\(isDefault ? "，原默认打开方式" : "")")
     }
 
@@ -365,6 +300,8 @@ struct RouteView: View {
                 TextField("搜索打开方式、个人资料或窗口", text: $model.optionSearch)
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedTarget, equals: .search)
+                    .onMoveCommand { moveFocus($0) }
+                    .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
                 Button { model.refreshSelectedTarget() } label: { Label("刷新", systemImage: "arrow.clockwise") }
                     .buttonStyle(.bordered)
                     .help("刷新个人资料、窗口和权限状态")
@@ -399,14 +336,17 @@ struct RouteView: View {
                                     .overlay(alignment: .topTrailing) {
                                         if isDefault { Text("原默认").font(.caption2).foregroundStyle(.tint).padding(.horizontal, 7).padding(.vertical, 3).background(.thinMaterial, in: Capsule()).padding(7) }
                                     }
-                                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(isDefault ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isDefault ? 2 : 1))
+                                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(focusedTarget == .option(option.id) ? Color.accentColor : (isDefault ? Color.accentColor : Color.primary.opacity(0.10)), lineWidth: focusedTarget == .option(option.id) || isDefault ? 2 : 1))
                                     .focused($focusedTarget, equals: .option(option.id))
-                                    .focusable(true)
+                                    .onMoveCommand { moveFocus($0) }
+                                    .onKeyPress(.tab, phases: .down) { moveTab(reverse: $0.modifiers.contains(.shift)) }
+                                    .onKeyPress(.return, phases: .down) { _ in Task { await model.choose(option) }; return .handled }
                                     .disabled(model.busy)
                                     .help(option.title + " — " + option.detail)
                                     .accessibilityLabel("\(option.title)，\(option.detail)\(isDefault ? "，原默认打开方式" : "")")
                                 }
                             }
+                            .focusSection()
                         }
                     }
                     if model.loadingTargets { HStack { ProgressView().controlSize(.small); Text("正在读取已有窗口和标签组，其他选项可直接使用。").foregroundStyle(.secondary) } }
@@ -414,7 +354,7 @@ struct RouteView: View {
                     if model.chromium {
                         let id = model.selectedAppID ?? ""
                         Text(BrowserBridge.connectionHint(appID: id, extensionID: model.bridgeIDs[id])).font(.callout).foregroundStyle(.secondary)
-                        if model.bridgeIDs[id] == nil { Text("先在管理界面的“打开接管 → 应用打开能力”中连接扩展。当前窗口会尝试通过系统窗口兜底显示，标签组需要扩展。").font(.caption).foregroundStyle(.secondary) }
+                        if model.bridgeIDs[id] == nil { Text("先在管理界面的“打开接管 → 应用打开能力”中连接扩展，才能读取已有浏览器窗口和标签组。").font(.caption).foregroundStyle(.secondary) }
                     }
                     ForEach(model.targetErrors.keys.sorted(), id: \.self) { name in
                         let message = model.targetErrors[name] ?? ""
@@ -422,7 +362,9 @@ struct RouteView: View {
                     }
                 }
                 .padding(.horizontal, 22).padding(.bottom, 22)
+                .focusSection()
             }
+            .onMoveCommand { moveFocus($0) }
         }
     }
 

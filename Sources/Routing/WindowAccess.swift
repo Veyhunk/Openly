@@ -1,13 +1,11 @@
 import AppKit
 import ApplicationServices
-import CoreGraphics
 
 struct AppWindow: Identifiable {
     let id: Int
     let title: String
     let element: AXUIElement
     let pid: pid_t
-    let exact: Bool
 }
 @MainActor enum WindowAccess {
     static var trusted: Bool { AXIsProcessTrusted() }
@@ -22,30 +20,24 @@ struct AppWindow: Identifiable {
         var result: [AppWindow] = []
         for running in NSRunningApplication.runningApplications(withBundleIdentifier: appID) {
             let app = AXUIElementCreateApplication(running.processIdentifier)
-            AXUIElementSetMessagingTimeout(app, 0.2)
+            AXUIElementSetMessagingTimeout(app, 2.0)
             var value: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success, let windows = value as? [AXUIElement] else { continue }
-            for window in windows {
-                var role: CFTypeRef?, title: CFTypeRef?
-                AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &role)
-                guard role as? String == kAXStandardWindowSubrole else { continue }
-                AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
-                result.append(.init(id: result.count, title: (title as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "未命名窗口 \(result.count + 1)", element: window, pid: running.processIdentifier, exact: true))
+            var error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+            if error == .cannotComplete {
+                AXUIElementSetMessagingTimeout(app, 2.0)
+                error = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
             }
-        }
-        if result.isEmpty { result = quartzWindows(appID: appID) }
-        return result
-    }
-    static func quartzWindows(appID: String) -> [AppWindow] {
-        var result: [AppWindow] = []
-        let infos = (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]) ?? []
-        for info in infos {
-            guard let pidNumber = info[kCGWindowOwnerPID as String] as? NSNumber,
-                  let app = NSRunningApplication(processIdentifier: pid_t(pidNumber.intValue)),
-                  Bundle(url: app.bundleURL ?? URL(fileURLWithPath: ""))?.bundleIdentifier == appID,
-                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { continue }
-            let title = (info[kCGWindowName as String] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "\(app.localizedName ?? "应用") 窗口 \(result.count + 1)"
-            result.append(.init(id: result.count, title: title, element: AXUIElementCreateApplication(app.processIdentifier), pid: app.processIdentifier, exact: false))
+            guard error == .success, let windows = value as? [AXUIElement] else { continue }
+            for window in windows {
+                var title: CFTypeRef?
+                // kAXWindowsAttribute is already defined by Apple as the
+                // application's window collection. Do not require a specific
+                // subrole: Electron apps may omit AXStandardWindowSubrole on
+                // secondary document windows.
+                AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+                guard let title = title as? String, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                result.append(.init(id: result.count, title: title, element: window, pid: running.processIdentifier))
+            }
         }
         return result
     }
@@ -86,10 +78,6 @@ struct AppWindow: Identifiable {
     static func focus(_ window: AppWindow) async throws {
         guard trusted else { throw OpenlyError("请先授予辅助功能权限") }
         guard let app = NSRunningApplication(processIdentifier: window.pid), !app.isTerminated else { throw OpenlyError("目标应用已退出") }
-        if !window.exact {
-            app.activate()
-            return
-        }
         AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         app.activate()
         let raised = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
